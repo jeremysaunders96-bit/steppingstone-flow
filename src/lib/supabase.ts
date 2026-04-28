@@ -1,0 +1,97 @@
+import { createClient } from "@supabase/supabase-js";
+
+const SUPABASE_URL = "https://depwgcghnvixbtifxtrz.supabase.co";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlcHdnY2dobnZpeGJ0aWZ4dHJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczODEyMTEsImV4cCI6MjA5Mjk1NzIxMX0.pzpzlXNyuXrDz1N_n9GrT3do9RqIXp5T9FKDmEXkymE";
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: false },
+});
+
+export type ContactStatus =
+  | "contacted"
+  | "replied"
+  | "meeting booked"
+  | "intro made"
+  | "deal done"
+  | "gone cold";
+
+export interface Contact {
+  id: string;
+  full_name: string;
+  company: string | null;
+  role: string | null;
+  email: string | null;
+  phone: string | null;
+  how_we_met: string | null;
+  status: ContactStatus | null;
+  linkedin_url: string | null;
+  notes: string | null;
+  last_contact_date: string | null;
+  created_at: string;
+}
+
+export type InteractionType =
+  | "meeting"
+  | "call"
+  | "email"
+  | "voice note"
+  | "introduction made"
+  | "note";
+
+export interface Interaction {
+  id: string;
+  contact_id: string;
+  date: string;
+  type: InteractionType;
+  summary: string;
+  full_note: string | null;
+  action_items: { text: string; done: boolean }[] | null;
+  needs_followup: boolean;
+  followup_by: string | null;
+  created_at: string;
+}
+
+export type DealStage = "exploring" | "in progress" | "warm" | "closing" | "done";
+
+export interface Deal {
+  id: string;
+  name: string;
+  stage: DealStage;
+  description: string | null;
+  target_amount: number | null;
+  created_at: string;
+}
+
+export interface DealContact {
+  id: string;
+  deal_id: string;
+  contact_id: string;
+}
+
+export interface Introduction {
+  id: string;
+  first_contact_id: string;
+  second_contact_id: string;
+  reason: string | null;
+  status: "made" | "progressing" | "led-somewhere" | "gone-cold";
+  created_at: string;
+}
+
+export type LinkedInStatus = "draft" | "approved" | "ignored" | "posted";
+export type LinkedInType = "Original" | "Reshare" | "Cultural";
+export type LinkedInPage = "Company page" | "Personal page";
+
+export interface LinkedInPost {
+  id: string;
+  post_type: LinkedInType;
+  page: LinkedInPage;
+  body: string;
+  personal_commentary: string | null;
+  status: LinkedInStatus;
+  posted_at: string | null;
+  impressions: number | null;
+  reactions: number | null;
+  comments: number | null;
+  created_at: string;
+}
