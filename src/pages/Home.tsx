@@ -192,7 +192,9 @@ export default function Home() {
       <section>
         <h2 className="font-display text-2xl text-teal mb-4">Active Deals</h2>
         {deals.length === 0 ? (
-          <div className="card-soft p-6 text-sm text-muted-foreground italic">No active deals.</div>
+          <div className="card-soft p-6 text-sm text-muted-foreground italic">
+            No active deals yet — add one to see it here.
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-fr">
             {deals.map(d => (
