@@ -51,10 +51,18 @@ export default function ContactDetail() {
             )}
             <div className="mt-2"><StatusBadge status={c.status} /></div>
           </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button className="bg-teal hover:bg-teal/90 text-white" onClick={()=>setDraft(true)}>Draft Email</Button>
-            <Button className="bg-teal-light hover:bg-teal-light/80 text-teal" onClick={()=>setIntro(true)}>Draft Introduction Email</Button>
-            <Button variant="outline" onClick={()=>setNote(true)}>Add Note</Button>
+          <div className="flex items-center gap-3">
+            <div className="inline-flex rounded-md overflow-hidden shadow-sm">
+              <Button
+                className="bg-teal hover:bg-teal/90 text-white rounded-none border-r border-white/15"
+                onClick={()=>setDraft(true)}
+              >Draft Email</Button>
+              <Button
+                className="bg-teal-light hover:bg-teal-light/80 text-teal rounded-none"
+                onClick={()=>setIntro(true)}
+              >Draft Introduction Email</Button>
+            </div>
+            <Button variant="outline" size="sm" onClick={()=>setNote(true)}>Add Note</Button>
           </div>
         </div>
 

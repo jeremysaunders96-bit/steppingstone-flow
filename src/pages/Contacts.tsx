@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import { supabase, type Contact } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { AddContactModal } from "@/components/modals/AddContactModal";
 import { NewIntroductionModal } from "@/components/modals/NewIntroductionModal";
 
 export default function Contacts() {
+  const navigate = useNavigate();
   const [rows, setRows] = useState<Contact[]>([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
@@ -69,10 +70,12 @@ export default function Contacts() {
             ) : filtered.length === 0 ? (
               <tr><td className="px-5 py-6 text-muted-foreground italic" colSpan={5}>No contacts found.</td></tr>
             ) : filtered.map(c => (
-              <tr key={c.id} className="hover:bg-muted/30">
-                <td className="px-5 py-3">
-                  <Link to={`/contacts/${c.id}`} className="font-semibold text-ink hover:text-teal">{c.full_name}</Link>
-                </td>
+              <tr
+                key={c.id}
+                onClick={() => navigate(`/contacts/${c.id}`)}
+                className="hover:bg-muted/30 cursor-pointer"
+              >
+                <td className="px-5 py-3 font-semibold text-ink">{c.full_name}</td>
                 <td className="px-5 py-3 text-ink/80">{c.company || "—"}</td>
                 <td className="px-5 py-3 text-ink/70 hidden md:table-cell">{c.role || "—"}</td>
                 <td className="px-5 py-3"><StatusBadge status={c.status} /></td>
