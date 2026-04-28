@@ -140,9 +140,9 @@ export default function Deals() {
   ];
 
   return (
-    <div className="-mx-6 md:-mx-10 -my-8 md:-my-10 flex min-h-[calc(100vh-3rem)]">
+    <div className="fixed inset-0 left-[var(--sidebar-w,0px)] flex items-stretch h-screen bg-teal z-10 md:left-[260px]">
       {/* LEFT PANEL */}
-      <aside className="w-[320px] shrink-0 bg-teal text-white flex flex-col">
+      <aside className="w-[320px] shrink-0 bg-teal text-white flex flex-col h-screen">
         <div className="px-5 pt-6 pb-3 flex items-center justify-between">
           <div className="font-display text-xl">Deals</div>
           <button
