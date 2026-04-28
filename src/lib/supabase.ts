@@ -52,7 +52,7 @@ export interface Interaction {
   created_at: string;
 }
 
-export type DealStage = "exploring" | "in progress" | "warm" | "closing" | "done";
+export type DealStage = "active" | "progressing" | "stalled" | "done";
 export type DealType = "capital-raise" | "introduction-mandate" | "advisory" | "other";
 
 export interface Deal {
