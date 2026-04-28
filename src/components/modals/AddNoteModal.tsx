@@ -12,12 +12,15 @@ import { X, Plus } from "lucide-react";
 
 const TYPES: InteractionType[] = ["meeting","call","email","voice note","introduction made","note"];
 
+// Remembers the last type Will picked, for the lifetime of this browser session.
+let lastType: InteractionType = "note";
+
 export function AddNoteModal({
   open, onOpenChange, contactId, onSaved,
 }: { open: boolean; onOpenChange:(v:boolean)=>void; contactId: string; onSaved:()=>void }) {
   const today = new Date().toISOString().slice(0,10);
   const [date, setDate] = useState(today);
-  const [type, setType] = useState<InteractionType>("note");
+  const [type, setType] = useState<InteractionType>(lastType);
   const [summary, setSummary] = useState("");
   const [fullNote, setFullNote] = useState("");
   const [actions, setActions] = useState<string[]>([]);
@@ -37,8 +40,9 @@ export function AddNoteModal({
     if (!error) await supabase.from("contacts").update({ last_contact_date: date }).eq("id", contactId);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
+    lastType = type;
     toast.success("Saved");
-    setDate(today); setType("note"); setSummary(""); setFullNote(""); setActions([]); setNeeds(false); setBy("");
+    setDate(today); setSummary(""); setFullNote(""); setActions([]); setNeeds(false); setBy("");
     onOpenChange(false); onSaved();
   };
 
