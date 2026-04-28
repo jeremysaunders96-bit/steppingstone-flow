@@ -223,7 +223,7 @@ export default function Deals() {
       </aside>
 
       {/* RIGHT PANEL */}
-      <section className="flex-1 min-w-0 bg-background overflow-y-auto">
+      <section className="flex-1 min-w-0 bg-background overflow-y-auto h-screen">
         {!selected ? (
           <div className="p-10 text-sm text-muted-foreground italic">
             Select a deal on the left, or click "+ Add Deal" to create one.
