@@ -2,11 +2,10 @@ import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { supabase, type Contact, type Interaction, type Deal } from "@/lib/supabase";
-import { formatShortDate, formatMoney, daysSince } from "@/lib/format";
+import { formatShortDate, daysSince } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { AddMeetingModal } from "@/components/modals/AddMeetingModal";
 import { DraftEmailModal } from "@/components/modals/DraftEmailModal";
-import { DealModal } from "@/components/modals/DealModal";
 
 type OwesReplyRow = { interaction: Interaction; contact: Contact };
 type WorthCallRow = { contact: Contact };
@@ -16,6 +15,11 @@ type DealPulseRow = {
   days_since_activity: number | null;
 };
 type UpcomingRow = { interaction: Interaction; contact: Contact };
+type ActiveDealRow = {
+  deal: Deal;
+  last_activity_date: string | null;
+  days_since_activity: number | null;
+};
 
 type TodayMeeting = {
   interaction: Interaction;
@@ -29,12 +33,11 @@ export default function Home() {
   const [dealPulse, setDealPulse] = useState<DealPulseRow[]>([]);
   const [upcoming, setUpcoming] = useState<UpcomingRow[]>([]);
   const [meetings, setMeetings] = useState<TodayMeeting[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
+  const [activeDeals, setActiveDeals] = useState<ActiveDealRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [meetingOpen, setMeetingOpen] = useState(false);
   const [draftFor, setDraftFor] = useState<Contact | null>(null);
-  const [openDeal, setOpenDeal] = useState<Deal | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,21 +81,28 @@ export default function Home() {
     const { data: pulse } = await supabase
       .from("deal_last_activity")
       .select("*");
-    const pulseRows: DealPulseRow[] = (pulse || [])
+    const allDealRows = (pulse || []).map((r: any) => ({
+      deal: {
+        id: r.id ?? r.deal_id,
+        name: r.name ?? r.deal_name,
+        stage: r.stage,
+        description: r.description ?? null,
+        target_amount: r.target_amount ?? null,
+        created_at: r.created_at ?? "",
+        deal_type: r.deal_type ?? null,
+        client_name: r.client_name ?? null,
+        start_date: r.start_date ?? null,
+        target_close_date: r.target_close_date ?? null,
+        commission_structure: r.commission_structure ?? null,
+        next_action: r.next_action ?? null,
+        next_action_date: r.next_action_date ?? null,
+      } as Deal,
+      last_activity_date: r.last_activity_date,
+      days_since_activity: r.days_since_activity,
+    }));
+    const pulseRows: DealPulseRow[] = allDealRows
       .filter((r: any) => r.stage !== "done")
-      .filter((r: any) => r.last_activity_date == null || (r.days_since_activity ?? 0) > 7)
-      .map((r: any) => ({
-        deal: {
-          id: r.id ?? r.deal_id,
-          name: r.name ?? r.deal_name,
-          stage: r.stage,
-          description: r.description ?? null,
-          target_amount: r.target_amount ?? null,
-          created_at: r.created_at ?? "",
-        } as Deal,
-        last_activity_date: r.last_activity_date,
-        days_since_activity: r.days_since_activity,
-      }));
+      .filter((r: any) => r.last_activity_date == null || (r.days_since_activity ?? 0) > 7);
     setDealPulse(pulseRows);
 
     // 4. Follow-ups Coming Up — between tomorrow and +7 days
@@ -132,10 +142,10 @@ export default function Home() {
     }
     setMeetings(todaysList);
 
-    // Deals
-    const { data: dealRows } = await supabase
-      .from("deals").select("*").neq("stage","done").order("created_at",{ascending:false});
-    setDeals((dealRows || []) as Deal[]);
+    // Active deals (for the simpler summary row list)
+    const active = allDealRows.filter(r => r.deal.stage !== "done");
+    active.sort((a,b) => (b.deal.created_at || "").localeCompare(a.deal.created_at || ""));
+    setActiveDeals(active);
 
     setLoading(false);
   }, []);
@@ -212,10 +222,10 @@ export default function Home() {
                             : `Last activity: ${days_since_activity} days ago`}
                         </div>
                       </div>
-                      <button
-                        onClick={() => setOpenDeal(deal)}
+                      <Link
+                        to={`/deals?deal=${deal.id}`}
                         className="text-sm text-teal hover:underline whitespace-nowrap"
-                      >View deal</button>
+                      >View deal</Link>
                     </div>
                   ))}
                 </div>
@@ -318,31 +328,37 @@ export default function Home() {
       {/* Active Deals */}
       <section>
         <h2 className="font-display text-2xl text-teal mb-4">Active Deals</h2>
-        {deals.length === 0 ? (
+        {activeDeals.length === 0 ? (
           <div className="card-soft p-6 text-sm text-muted-foreground italic">
             No active deals yet — add one to see it here.
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-4 auto-rows-fr">
-            {deals.map(d => (
-              <button
-                key={d.id}
-                onClick={() => setOpenDeal(d)}
-                className="card-soft p-5 text-left hover:shadow-lg transition-shadow flex flex-col h-full min-h-[180px]"
-              >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="font-display text-lg text-teal leading-tight">{d.name}</h3>
-                  <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-teal-light text-teal whitespace-nowrap">
-                    Active
-                  </span>
+          <div className="card-soft divide-y">
+            {activeDeals.map(({ deal, last_activity_date, days_since_activity }) => (
+              <div key={deal.id} className="flex items-center gap-4 px-5 py-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="font-semibold text-teal">{deal.name}</span>
+                    <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-teal-light text-teal">
+                      {deal.stage}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {last_activity_date == null ? "No activity yet" : `${days_since_activity}d since activity`}
+                    </span>
+                  </div>
+                  {deal.next_action && (
+                    <div className="text-sm text-ink/80 mt-0.5 truncate">
+                      Next: {deal.next_action}
+                    </div>
+                  )}
                 </div>
-                <p className="text-sm text-ink/75 line-clamp-2 min-h-[2.5rem]">
-                  {d.description || ""}
-                </p>
-                <div className="font-display text-xl text-ink mt-auto pt-3">
-                  {d.target_amount != null ? formatMoney(d.target_amount) : "\u00A0"}
-                </div>
-              </button>
+                <Link
+                  to={`/deals?deal=${deal.id}`}
+                  className="text-sm text-teal hover:underline whitespace-nowrap"
+                >
+                  View
+                </Link>
+              </div>
             ))}
           </div>
         )}
@@ -350,7 +366,6 @@ export default function Home() {
 
       <AddMeetingModal open={meetingOpen} onOpenChange={setMeetingOpen} onSaved={load} />
       <DraftEmailModal open={!!draftFor} onOpenChange={(v)=>!v && setDraftFor(null)} contactName={draftFor?.full_name} contact={draftFor} />
-      <DealModal deal={openDeal} onOpenChange={(v)=>!v && setOpenDeal(null)} />
     </div>
   );
 }
