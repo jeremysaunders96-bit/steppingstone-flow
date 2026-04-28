@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
-import { Home, Users, Linkedin } from "lucide-react";
+import { Home, Users, Linkedin, Mail } from "lucide-react";
 import { useAttentionCount } from "@/hooks/useAttentionCount";
+import { Button } from "@/components/ui/button";
 
 const items = [
   { to: "/", label: "Home", icon: Home, end: true, key: "home" as const },
@@ -8,7 +9,7 @@ const items = [
   { to: "/linkedin", label: "LinkedIn Queue", icon: Linkedin, end: false, key: "linkedin" as const },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onComposeClick }: { onComposeClick?: () => void }) {
   const attention = useAttentionCount();
   return (
     <aside className="hidden md:flex md:flex-col w-[240px] shrink-0 bg-teal text-white min-h-screen">
@@ -42,6 +43,16 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
+      {onComposeClick && (
+        <div className="px-3 pt-3">
+          <Button
+            onClick={onComposeClick}
+            className="w-full bg-teal-light text-teal hover:bg-white hover:text-teal font-medium"
+          >
+            <Mail className="h-4 w-4 mr-2" /> Compose Email
+          </Button>
+        </div>
+      )}
       <div className="px-6 py-6 text-[11px] text-white/50">
         {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
       </div>
