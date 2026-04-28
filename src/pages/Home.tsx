@@ -196,7 +196,7 @@ export default function Home() {
             No active deals yet — add one to see it here.
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-fr">
+          <div className="grid grid-cols-3 gap-4 auto-rows-fr">
             {deals.map(d => (
               <button
                 key={d.id}
@@ -206,7 +206,7 @@ export default function Home() {
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <h3 className="font-display text-lg text-teal leading-tight">{d.name}</h3>
                   <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-teal-light text-teal whitespace-nowrap">
-                    {d.stage}
+                    Active
                   </span>
                 </div>
                 <p className="text-sm text-ink/75 line-clamp-2 min-h-[2.5rem]">
