@@ -14,7 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      draft_feedback: {
+        Row: {
+          brief: string | null
+          contact_id: string | null
+          created_at: string
+          edit_notes: string | null
+          final_version: string | null
+          id: string
+          mode: string
+          original_draft: string
+          outcome: string
+        }
+        Insert: {
+          brief?: string | null
+          contact_id?: string | null
+          created_at?: string
+          edit_notes?: string | null
+          final_version?: string | null
+          id?: string
+          mode?: string
+          original_draft: string
+          outcome: string
+        }
+        Update: {
+          brief?: string | null
+          contact_id?: string | null
+          created_at?: string
+          edit_notes?: string | null
+          final_version?: string | null
+          id?: string
+          mode?: string
+          original_draft?: string
+          outcome?: string
+        }
+        Relationships: []
+      }
+      system_context: {
+        Row: {
+          context_text: string
+          created_at: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          context_text: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          context_text?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
