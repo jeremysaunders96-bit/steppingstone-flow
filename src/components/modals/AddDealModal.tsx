@@ -15,7 +15,7 @@ const TYPES: { value: DealType; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
-const STAGES: DealStage[] = ["exploring","in progress","warm","closing","done"];
+const STAGES: DealStage[] = ["active","progressing","stalled","done"];
 
 export function AddDealModal({
   open, onOpenChange, onSaved,
@@ -29,13 +29,13 @@ export function AddDealModal({
   const [commission, setCommission] = useState("");
   const [nextAction, setNextAction] = useState("");
   const [nextDate, setNextDate] = useState("");
-  const [stage, setStage] = useState<DealStage>("exploring");
+  const [stage, setStage] = useState<DealStage>("active");
   const [saving, setSaving] = useState(false);
 
   const reset = () => {
     setName(""); setDealType(""); setClient(""); setTarget("");
     setStartDate(""); setCloseDate(""); setCommission("");
-    setNextAction(""); setNextDate(""); setStage("exploring");
+    setNextAction(""); setNextDate(""); setStage("active");
   };
 
   const save = async () => {

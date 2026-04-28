@@ -15,7 +15,7 @@ type DealRow = Deal & { last_activity_date: string | null; days_since_activity: 
 type LinkedContact = Contact & { role_in_deal: string | null };
 type FeedRow = Interaction & { contact: Contact | null };
 
-const STAGES: DealStage[] = ["exploring","in progress","warm","closing","done"];
+const STAGES: DealStage[] = ["active","progressing","stalled","done"];
 
 const TYPE_LABEL: Record<DealType, string> = {
   "capital-raise": "Capital Raise",
@@ -45,8 +45,12 @@ export default function Deals() {
       rows = ((data || []) as Deal[]).map(d => ({ ...d, last_activity_date: null, days_since_activity: null }));
     } else {
       rows = (viewData as any[]).map(r => ({
-        id: r.id, name: r.name, stage: r.stage, description: r.description ?? null,
-        target_amount: r.target_amount ?? null, created_at: r.created_at,
+        id: r.id ?? r.deal_id,
+        name: r.name ?? r.deal_name ?? "Untitled deal",
+        stage: r.stage,
+        description: r.description ?? null,
+        target_amount: r.target_amount ?? null,
+        created_at: r.created_at ?? "",
         deal_type: r.deal_type ?? null, client_name: r.client_name ?? null,
         start_date: r.start_date ?? null, target_close_date: r.target_close_date ?? null,
         commission_structure: r.commission_structure ?? null,
