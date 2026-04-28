@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ContactPicker } from "@/components/ContactPicker";
 import { type Contact } from "@/lib/supabase";
 import { generateDraft, fetchRecentInteractions, contactToBrief } from "@/lib/draftEmail";
+import { DraftFeedback } from "@/components/DraftFeedback";
 
 export function DraftIntroEmailModal({
   open, onOpenChange, firstContact,
@@ -17,6 +18,7 @@ export function DraftIntroEmailModal({
   const [second, setSecond] = useState<Contact | null>(null);
   const [reason, setReason] = useState("");
   const [draft, setDraft] = useState<string>("");
+  const [originalDraft, setOriginalDraft] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -42,6 +44,7 @@ export function DraftIntroEmailModal({
         contactB: contactToBrief(second, iB),
       });
       setDraft(text);
+      setOriginalDraft(text);
     } catch (e) {
       toast({ title: "Could not generate draft", description: e instanceof Error ? e.message : "Please try again.", variant: "destructive" });
     } finally {
@@ -59,7 +62,7 @@ export function DraftIntroEmailModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v)=>{ onOpenChange(v); if(!v) { setDraft(""); setLoading(false); } }}>
+    <Dialog open={open} onOpenChange={(v)=>{ onOpenChange(v); if(!v) { setDraft(""); setOriginalDraft(""); setLoading(false); } }}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader><DialogTitle className="font-display text-teal">Draft Introduction Email</DialogTitle></DialogHeader>
         <div className="space-y-3">
@@ -79,6 +82,13 @@ export function DraftIntroEmailModal({
                   Regenerate
                 </Button>
               </div>
+              <DraftFeedback
+                mode="intro"
+                contactId={first?.id ?? null}
+                originalDraft={originalDraft}
+                currentDraft={draft}
+                brief={reason}
+              />
             </div>
           )}
         </div>

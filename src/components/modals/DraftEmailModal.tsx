@@ -8,6 +8,7 @@ import { Loader2, Copy, RefreshCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { generateDraft, fetchRecentInteractions, contactToBrief } from "@/lib/draftEmail";
 import type { Contact } from "@/lib/supabase";
+import { DraftFeedback } from "@/components/DraftFeedback";
 
 export function DraftEmailModal({
   open, onOpenChange, contactName, contact,
@@ -15,10 +16,11 @@ export function DraftEmailModal({
   const [brief, setBrief] = useState("");
   const [account, setAccount] = useState("william@steppingstone.co.uk");
   const [draft, setDraft] = useState<string>("");
+  const [originalDraft, setOriginalDraft] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  const reset = () => { setDraft(""); setBrief(""); setLoading(false); };
+  const reset = () => { setDraft(""); setOriginalDraft(""); setBrief(""); setLoading(false); };
 
   const run = async () => {
     if (!contact) {
@@ -39,6 +41,7 @@ export function DraftEmailModal({
         contact: contactToBrief(contact, interactions),
       });
       setDraft(text);
+      setOriginalDraft(text);
     } catch (e) {
       toast({ title: "Could not generate draft", description: e instanceof Error ? e.message : "Please try again.", variant: "destructive" });
     } finally {
@@ -94,6 +97,13 @@ export function DraftEmailModal({
                   Regenerate
                 </Button>
               </div>
+              <DraftFeedback
+                mode="single"
+                contactId={contact?.id ?? null}
+                originalDraft={originalDraft}
+                currentDraft={draft}
+                brief={brief}
+              />
             </div>
           )}
         </div>
