@@ -140,7 +140,7 @@ export default function Deals() {
   ];
 
   return (
-    <div className="deals-fullbleed flex items-stretch h-screen bg-teal">
+    <div className="flex items-stretch flex-1 h-screen bg-teal w-full">
       {/* LEFT PANEL */}
       <aside className="w-[320px] shrink-0 bg-teal text-white flex flex-col h-screen">
         <div className="px-5 pt-6 pb-3 flex items-center justify-between">
