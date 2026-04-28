@@ -220,7 +220,7 @@ export default function Home() {
       </section>
 
       <AddMeetingModal open={meetingOpen} onOpenChange={setMeetingOpen} onSaved={load} />
-      <DraftEmailModal open={!!draftFor} onOpenChange={(v)=>!v && setDraftFor(null)} contactName={draftFor?.full_name} />
+      <DraftEmailModal open={!!draftFor} onOpenChange={(v)=>!v && setDraftFor(null)} contactName={draftFor?.full_name} contact={draftFor} />
       <DealModal deal={openDeal} onOpenChange={(v)=>!v && setOpenDeal(null)} />
     </div>
   );
