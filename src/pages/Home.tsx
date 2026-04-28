@@ -96,6 +96,7 @@ export default function Home() {
         commission_structure: r.commission_structure ?? null,
         next_action: r.next_action ?? null,
         next_action_date: r.next_action_date ?? null,
+        latest_update: r.latest_update ?? null,
       } as Deal,
       last_activity_date: r.last_activity_date,
       days_since_activity: r.days_since_activity,
