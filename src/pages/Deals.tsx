@@ -140,9 +140,9 @@ export default function Deals() {
   ];
 
   return (
-    <div className="-mx-6 md:-mx-10 -my-8 md:-my-10 flex min-h-[calc(100vh-3rem)]">
+    <div className="flex items-stretch flex-1 h-screen bg-teal w-full">
       {/* LEFT PANEL */}
-      <aside className="w-[320px] shrink-0 bg-teal text-white flex flex-col">
+      <aside className="w-[320px] shrink-0 bg-teal text-white flex flex-col h-screen">
         <div className="px-5 pt-6 pb-3 flex items-center justify-between">
           <div className="font-display text-xl">Deals</div>
           <button
@@ -223,7 +223,7 @@ export default function Deals() {
       </aside>
 
       {/* RIGHT PANEL */}
-      <section className="flex-1 min-w-0 bg-background overflow-y-auto">
+      <section className="flex-1 min-w-0 bg-background overflow-y-auto h-screen">
         {!selected ? (
           <div className="p-10 text-sm text-muted-foreground italic">
             Select a deal on the left, or click "+ Add Deal" to create one.
