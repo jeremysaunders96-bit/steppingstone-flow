@@ -15,9 +15,19 @@ const TYPES: InteractionType[] = ["meeting","call","email","voice note","introdu
 // Remembers the last type Will picked, for the lifetime of this browser session.
 let lastType: InteractionType = "note";
 
+type LinkedContactOption = { id: string; full_name: string; company?: string | null };
+
 export function AddNoteModal({
-  open, onOpenChange, contactId, onSaved,
-}: { open: boolean; onOpenChange:(v:boolean)=>void; contactId: string; onSaved:()=>void }) {
+  open, onOpenChange, contactId, contactOptions, onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  /** Fixed contact this note belongs to. Ignored when contactOptions is provided. */
+  contactId?: string;
+  /** When provided, render a contact picker at the top of the modal. */
+  contactOptions?: LinkedContactOption[];
+  onSaved: () => void;
+}) {
   const today = new Date().toISOString().slice(0,10);
   const [date, setDate] = useState(today);
   const [type, setType] = useState<InteractionType>(lastType);
@@ -27,6 +37,10 @@ export function AddNoteModal({
   const [needs, setNeeds] = useState(false);
   const [by, setBy] = useState("");
   const [saving, setSaving] = useState(false);
+  const [pickedContactId, setPickedContactId] = useState<string>("");
+
+  const usePicker = !!contactOptions && contactOptions.length > 0;
+  const effectiveContactId = usePicker ? pickedContactId : (contactId || "");
 
   const followupRequired = type === "meeting" || type === "call";
 
@@ -44,6 +58,7 @@ export function AddNoteModal({
   }, [type]);
 
   const save = async () => {
+    if (!effectiveContactId) { toast.error("Pick a contact for this note"); return; }
     if (!summary.trim()) { toast.error("Summary is required"); return; }
     if (followupRequired && !by) {
       toast.error("Follow-up date is required for meetings and calls");
@@ -51,17 +66,17 @@ export function AddNoteModal({
     }
     setSaving(true);
     const { error } = await supabase.from("interactions").insert({
-      contact_id: contactId, date, type, summary: summary.trim(),
+      contact_id: effectiveContactId, date, type, summary: summary.trim(),
       full_note: fullNote.trim() || null,
       action_items: actions.filter(Boolean).map(text => ({ text, done: false })),
       needs_followup: needs, followup_by: needs && by ? by : null,
     });
-    if (!error) await supabase.from("contacts").update({ last_contact_date: date }).eq("id", contactId);
+    if (!error) await supabase.from("contacts").update({ last_contact_date: date }).eq("id", effectiveContactId);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     lastType = type;
     toast.success("Saved");
-    setDate(today); setSummary(""); setFullNote(""); setActions([]); setNeeds(false); setBy("");
+    setDate(today); setSummary(""); setFullNote(""); setActions([]); setNeeds(false); setBy(""); setPickedContactId("");
     onOpenChange(false); onSaved();
   };
 
@@ -70,6 +85,21 @@ export function AddNoteModal({
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle className="font-display text-teal">Add Note</DialogTitle></DialogHeader>
         <div className="space-y-3">
+          {usePicker && (
+            <div>
+              <Label>Contact</Label>
+              <Select value={pickedContactId} onValueChange={setPickedContactId}>
+                <SelectTrigger><SelectValue placeholder="Which linked contact is this about?" /></SelectTrigger>
+                <SelectContent>
+                  {contactOptions!.map(c => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.full_name}{c.company ? ` — ${c.company}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Date</Label><Input type="date" value={date} onChange={e=>setDate(e.target.value)} /></div>
             <div><Label>Type</Label>
