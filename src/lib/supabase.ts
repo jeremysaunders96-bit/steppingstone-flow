@@ -84,8 +84,6 @@ export interface Introduction {
 export interface IntroductionWithOther extends Introduction {
   other: Contact | null;
 }
-  created_at: string;
-}
 
 export type LinkedInStatus = "draft" | "approved" | "ignored" | "posted";
 export type LinkedInType = "Original" | "Reshare" | "Cultural";
