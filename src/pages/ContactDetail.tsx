@@ -188,7 +188,7 @@ export default function ContactDetail() {
         </Tabs>
       </section>
 
-      <DraftEmailModal open={draft} onOpenChange={setDraft} contactName={c.full_name} />
+      <DraftEmailModal open={draft} onOpenChange={setDraft} contactName={c.full_name} contact={c} />
       <DraftIntroEmailModal open={intro} onOpenChange={setIntro} firstContact={c} />
       <AddNoteModal open={note} onOpenChange={setNote} contactId={c.id} onSaved={load} />
       <LinkToDealModal open={linkDeal} onOpenChange={setLinkDeal} contactId={c.id} onSaved={load} />
