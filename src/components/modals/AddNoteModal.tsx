@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,8 +28,27 @@ export function AddNoteModal({
   const [by, setBy] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const followupRequired = type === "meeting" || type === "call";
+
+  // When type flips to meeting/call, force needs_followup on and default to +4 days.
+  useEffect(() => {
+    if (followupRequired) {
+      setNeeds(true);
+      if (!by) {
+        const d = new Date();
+        d.setDate(d.getDate() + 4);
+        setBy(d.toISOString().slice(0, 10));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type]);
+
   const save = async () => {
     if (!summary.trim()) { toast.error("Summary is required"); return; }
+    if (followupRequired && !by) {
+      toast.error("Follow-up date is required for meetings and calls");
+      return;
+    }
     setSaving(true);
     const { error } = await supabase.from("interactions").insert({
       contact_id: contactId, date, type, summary: summary.trim(),
@@ -79,11 +98,32 @@ export function AddNoteModal({
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Switch checked={needs} onCheckedChange={setNeeds} />
-            <Label className="!mb-0">Needs follow-up</Label>
+            <Switch
+              checked={needs}
+              onCheckedChange={setNeeds}
+              disabled={followupRequired}
+            />
+            <Label className="!mb-0">
+              Needs follow-up
+              {followupRequired && <span className="text-orange ml-1">(required)</span>}
+            </Label>
           </div>
           {needs && (
-            <div><Label>Follow-up by</Label><Input type="date" value={by} onChange={e=>setBy(e.target.value)} /></div>
+            <div>
+              <Label>
+                Follow-up by
+                {followupRequired && <span className="text-orange ml-1">*</span>}
+              </Label>
+              <Input
+                type="date"
+                value={by}
+                onChange={e=>setBy(e.target.value)}
+                className={followupRequired ? "ring-2 ring-orange/60 border-orange focus-visible:ring-orange" : ""}
+              />
+              {followupRequired && (
+                <p className="text-xs text-orange mt-1">Defaulted to 4 days from today — change if needed.</p>
+              )}
+            </div>
           )}
         </div>
         <DialogFooter>
