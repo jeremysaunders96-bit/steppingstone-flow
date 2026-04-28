@@ -47,7 +47,7 @@ export function Sidebar({ onComposeClick }: { onComposeClick?: () => void }) {
         <div className="px-3 pt-3">
           <Button
             onClick={onComposeClick}
-            className="w-full bg-teal-light text-teal hover:bg-white hover:text-teal font-medium"
+            className="w-full bg-teal text-white border border-white/20 hover:bg-[hsl(195_42%_24%)] font-medium"
           >
             <Mail className="h-4 w-4 mr-2" /> Compose Email
           </Button>
