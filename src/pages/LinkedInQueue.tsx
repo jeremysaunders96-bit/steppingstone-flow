@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase, type LinkedInPost } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
+import { Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 export default function LinkedInQueue() {
@@ -55,8 +56,22 @@ export default function LinkedInQueue() {
                   </div>
                 )}
                 <div className="flex gap-2 mt-5">
-                  <Button className="bg-teal hover:bg-teal/90 text-white" onClick={()=>decide(p.id,"approved")}>Approve</Button>
-                  <Button variant="outline" onClick={()=>decide(p.id,"ignored")}>Ignore</Button>
+                  <Button
+                    className="bg-teal hover:bg-teal/90 text-white"
+                    onClick={()=>decide(p.id,"approved")}
+                    aria-label="Approve"
+                  >
+                    <Check className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Approve</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={()=>decide(p.id,"ignored")}
+                    aria-label="Ignore"
+                  >
+                    <X className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Ignore</span>
+                  </Button>
                 </div>
               </article>
             ))}

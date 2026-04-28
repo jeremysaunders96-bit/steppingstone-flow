@@ -194,12 +194,12 @@ export default function Home() {
         {deals.length === 0 ? (
           <div className="card-soft p-6 text-sm text-muted-foreground italic">No active deals.</div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-fr">
             {deals.map(d => (
               <button
                 key={d.id}
                 onClick={() => setOpenDeal(d)}
-                className="card-soft p-5 text-left hover:shadow-lg transition-shadow"
+                className="card-soft p-5 text-left hover:shadow-lg transition-shadow flex flex-col h-full min-h-[180px]"
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <h3 className="font-display text-lg text-teal leading-tight">{d.name}</h3>
@@ -207,12 +207,12 @@ export default function Home() {
                     {d.stage}
                   </span>
                 </div>
-                {d.description && (
-                  <p className="text-sm text-ink/75 line-clamp-2">{d.description}</p>
-                )}
-                {d.target_amount != null && (
-                  <div className="font-display text-xl text-ink mt-3">{formatMoney(d.target_amount)}</div>
-                )}
+                <p className="text-sm text-ink/75 line-clamp-2 min-h-[2.5rem]">
+                  {d.description || ""}
+                </p>
+                <div className="font-display text-xl text-ink mt-auto pt-3">
+                  {d.target_amount != null ? formatMoney(d.target_amount) : "\u00A0"}
+                </div>
               </button>
             ))}
           </div>
