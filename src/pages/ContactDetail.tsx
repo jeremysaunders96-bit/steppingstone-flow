@@ -1,16 +1,22 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ChevronLeft, ChevronDown, ChevronRight, Link2 } from "lucide-react";
-import { supabase, type Contact, type Interaction, type IntroductionWithOther } from "@/lib/supabase";
+import { supabase, type Contact, type Interaction, type IntroductionWithOther, type Deal } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
 import { IntroductionStatusBadge } from "@/components/IntroductionStatusBadge";
-import { formatLongDate } from "@/lib/format";
+import { formatLongDate, formatMoney } from "@/lib/format";
 import { DraftEmailModal } from "@/components/modals/DraftEmailModal";
 import { DraftIntroEmailModal } from "@/components/modals/DraftIntroEmailModal";
 import { AddNoteModal } from "@/components/modals/AddNoteModal";
 import { LinkToDealModal } from "@/components/modals/LinkToDealModal";
+import { DealModal } from "@/components/modals/DealModal";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+
+type LinkedDeal = Deal & { role_in_deal: string | null };
 
 export default function ContactDetail() {
   const { id } = useParams<{ id: string }>();
@@ -22,6 +28,13 @@ export default function ContactDetail() {
   const [intro, setIntro] = useState(false);
   const [note, setNote] = useState(false);
   const [linkDeal, setLinkDeal] = useState(false);
+  const [linkedDeals, setLinkedDeals] = useState<LinkedDeal[]>([]);
+  const [openDeal, setOpenDeal] = useState<Deal | null>(null);
+  const [inlineLink, setInlineLink] = useState(false);
+  const [activeDeals, setActiveDeals] = useState<Deal[]>([]);
+  const [pickedDealId, setPickedDealId] = useState<string>("");
+  const [pickedRole, setPickedRole] = useState("");
+  const [savingLink, setSavingLink] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -48,8 +61,39 @@ export default function ContactDetail() {
       };
     });
     setIntros(mapped);
+
+    const { data: dealRows } = await supabase
+      .from("deal_contacts")
+      .select("role_in_deal, deal:deals(*)")
+      .eq("contact_id", id);
+    setLinkedDeals(
+      (dealRows || [])
+        .map((r: any) => r.deal ? { ...(r.deal as Deal), role_in_deal: r.role_in_deal } : null)
+        .filter(Boolean) as LinkedDeal[]
+    );
   }, [id]);
   useEffect(() => { load(); }, [load]);
+
+  const openInlineLink = async () => {
+    setInlineLink(true);
+    setPickedDealId(""); setPickedRole("");
+    const { data } = await supabase.from("deals").select("*").neq("stage","done").order("created_at",{ascending:false});
+    const linkedIds = new Set(linkedDeals.map(d => d.id));
+    setActiveDeals(((data || []) as Deal[]).filter(d => !linkedIds.has(d.id)));
+  };
+
+  const saveInlineLink = async () => {
+    if (!id || !pickedDealId) return;
+    setSavingLink(true);
+    const { error } = await supabase.from("deal_contacts").insert({
+      deal_id: pickedDealId, contact_id: id, role_in_deal: pickedRole.trim() || null,
+    });
+    setSavingLink(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Deal linked");
+    setInlineLink(false);
+    await load();
+  };
 
   const toggleAction = async (interactionId: string, idx: number) => {
     const i = hist.find(h => h.id === interactionId); if (!i?.action_items) return;
@@ -188,10 +232,93 @@ export default function ContactDetail() {
         </Tabs>
       </section>
 
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-display text-2xl text-teal">Linked Deals</h2>
+          {!inlineLink && (
+            <button
+              className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-teal-light text-teal hover:bg-teal-light/80"
+              onClick={openInlineLink}
+            >
+              + Link to deal
+            </button>
+          )}
+        </div>
+
+        {inlineLink && (
+          <div className="card-soft p-4 mb-3 space-y-2">
+            {activeDeals.length === 0 ? (
+              <div className="text-sm italic text-muted-foreground">No active deals available to link.</div>
+            ) : (
+              <Select value={pickedDealId} onValueChange={setPickedDealId}>
+                <SelectTrigger><SelectValue placeholder="Choose a deal…" /></SelectTrigger>
+                <SelectContent>
+                  {activeDeals.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            <div className="flex items-center gap-2">
+              <Input
+                value={pickedRole}
+                onChange={e=>setPickedRole(e.target.value)}
+                placeholder="e.g. Investor, Introducer, Advisor"
+                className="flex-1"
+              />
+              <button
+                disabled={!pickedDealId || savingLink}
+                onClick={saveInlineLink}
+                className="px-3 py-2 rounded-md text-sm font-medium bg-teal text-white hover:bg-teal/90 disabled:opacity-50"
+              >
+                Link
+              </button>
+              <button
+                onClick={()=>setInlineLink(false)}
+                className="px-2 py-2 text-xs text-muted-foreground hover:text-ink"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {linkedDeals.length === 0 ? (
+          <div className="card-soft p-6 text-sm text-muted-foreground italic">No deals linked.</div>
+        ) : (
+          <div className="card-soft divide-y">
+            {linkedDeals.map(d => (
+              <div key={d.id} className="px-5 py-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-teal">{d.name}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-teal-light text-teal">{d.stage}</span>
+                    {d.target_amount != null && (
+                      <span className="text-sm text-ink">{formatMoney(d.target_amount)}</span>
+                    )}
+                    {d.role_in_deal && (
+                      <span className="text-xs italic text-teal">{d.role_in_deal}</span>
+                    )}
+                  </div>
+                  {d.description && (
+                    <div className="text-sm text-muted-foreground truncate mt-0.5">{d.description}</div>
+                  )}
+                </div>
+                <button
+                  className="text-xs text-teal hover:underline shrink-0"
+                  onClick={()=>setOpenDeal(d)}
+                >
+                  View deal
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       <DraftEmailModal open={draft} onOpenChange={setDraft} contactName={c.full_name} contact={c} />
       <DraftIntroEmailModal open={intro} onOpenChange={setIntro} firstContact={c} />
       <AddNoteModal open={note} onOpenChange={setNote} contactId={c.id} onSaved={load} />
       <LinkToDealModal open={linkDeal} onOpenChange={setLinkDeal} contactId={c.id} onSaved={load} />
+      <DealModal deal={openDeal} onOpenChange={(v)=>!v && setOpenDeal(null)} />
     </div>
   );
 }
