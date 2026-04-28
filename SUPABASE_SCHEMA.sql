@@ -47,13 +47,20 @@ create table if not exists public.deals (
 -- Extra deal fields used by the Deals screen.
 -- Run these once if your existing deals table doesn't have them yet:
 alter table public.deals add column if not exists deal_type text
-  check (deal_type in ('capital-raise','introduction-mandate','advisory','other'));
+  check (deal_type in ('capital-raise','introduction-mandate','advisory','other','one-off-introduction'));
 alter table public.deals add column if not exists client_name text;
 alter table public.deals add column if not exists start_date date;
 alter table public.deals add column if not exists target_close_date date;
 alter table public.deals add column if not exists commission_structure text;
 alter table public.deals add column if not exists next_action text;
 alter table public.deals add column if not exists next_action_date date;
+alter table public.deals add column if not exists latest_update text;
+
+-- If you previously added a deal_type CHECK without 'one-off-introduction',
+-- run this to widen it:
+-- alter table public.deals drop constraint if exists deals_deal_type_check;
+-- alter table public.deals add constraint deals_deal_type_check
+--   check (deal_type in ('capital-raise','introduction-mandate','advisory','other','one-off-introduction'));
 
 -- View used by the Home "Deal Pulse" and Deals list to show staleness.
 create or replace view public.deal_last_activity as
@@ -71,6 +78,7 @@ select
   d.commission_structure,
   d.next_action,
   d.next_action_date,
+  d.latest_update,
   la.last_activity_date,
   case when la.last_activity_date is null then null
        else (current_date - la.last_activity_date)::int
