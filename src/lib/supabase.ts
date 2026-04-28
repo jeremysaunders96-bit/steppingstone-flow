@@ -53,6 +53,7 @@ export interface Interaction {
 }
 
 export type DealStage = "exploring" | "in progress" | "warm" | "closing" | "done";
+export type DealType = "capital-raise" | "introduction-mandate" | "advisory" | "other";
 
 export interface Deal {
   id: string;
@@ -61,6 +62,13 @@ export interface Deal {
   description: string | null;
   target_amount: number | null;
   created_at: string;
+  deal_type: DealType | null;
+  client_name: string | null;
+  start_date: string | null;
+  target_close_date: string | null;
+  commission_structure: string | null;
+  next_action: string | null;
+  next_action_date: string | null;
 }
 
 export interface DealContact {

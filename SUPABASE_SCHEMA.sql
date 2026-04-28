@@ -44,6 +44,45 @@ create table if not exists public.deals (
   created_at timestamptz not null default now()
 );
 
+-- Extra deal fields used by the Deals screen.
+-- Run these once if your existing deals table doesn't have them yet:
+alter table public.deals add column if not exists deal_type text
+  check (deal_type in ('capital-raise','introduction-mandate','advisory','other'));
+alter table public.deals add column if not exists client_name text;
+alter table public.deals add column if not exists start_date date;
+alter table public.deals add column if not exists target_close_date date;
+alter table public.deals add column if not exists commission_structure text;
+alter table public.deals add column if not exists next_action text;
+alter table public.deals add column if not exists next_action_date date;
+
+-- View used by the Home "Deal Pulse" and Deals list to show staleness.
+create or replace view public.deal_last_activity as
+select
+  d.id,
+  d.name,
+  d.stage,
+  d.description,
+  d.target_amount,
+  d.created_at,
+  d.deal_type,
+  d.client_name,
+  d.start_date,
+  d.target_close_date,
+  d.commission_structure,
+  d.next_action,
+  d.next_action_date,
+  la.last_activity_date,
+  case when la.last_activity_date is null then null
+       else (current_date - la.last_activity_date)::int
+  end as days_since_activity
+from public.deals d
+left join lateral (
+  select max(i.date) as last_activity_date
+  from public.deal_contacts dc
+  join public.interactions i on i.contact_id = dc.contact_id
+  where dc.deal_id = d.id
+) la on true;
+
 create table if not exists public.deal_contacts (
   id uuid primary key default gen_random_uuid(),
   deal_id uuid not null references public.deals(id) on delete cascade,
