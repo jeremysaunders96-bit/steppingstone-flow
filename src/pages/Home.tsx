@@ -222,10 +222,10 @@ export default function Home() {
                             : `Last activity: ${days_since_activity} days ago`}
                         </div>
                       </div>
-                      <button
-                        onClick={() => setOpenDeal(deal)}
+                      <Link
+                        to={`/deals?deal=${deal.id}`}
                         className="text-sm text-teal hover:underline whitespace-nowrap"
-                      >View deal</button>
+                      >View deal</Link>
                     </div>
                   ))}
                 </div>
