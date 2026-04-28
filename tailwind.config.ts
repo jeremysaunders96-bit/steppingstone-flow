@@ -19,6 +19,14 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        teal: {
+          DEFAULT: "hsl(var(--teal))",
+          light: "hsl(var(--teal-light))",
+        },
+        orange: {
+          DEFAULT: "hsl(var(--orange))",
+        },
+        ink: "hsl(var(--ink))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -62,6 +70,13 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      fontFamily: {
+        display: ["Georgia", "Times New Roman", "serif"],
+        sans: ["Arial", "Helvetica", "sans-serif"],
+      },
+      boxShadow: {
+        card: "0 1px 2px hsl(204 31% 14% / 0.04), 0 4px 16px hsl(204 31% 14% / 0.06)",
       },
       keyframes: {
         "accordion-down": {
