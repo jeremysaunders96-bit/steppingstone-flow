@@ -67,15 +67,22 @@ export interface DealContact {
   id: string;
   deal_id: string;
   contact_id: string;
+  role_in_deal: string | null;
 }
+
+export type IntroductionStatus = "made" | "progressing" | "led-somewhere" | "gone-cold";
 
 export interface Introduction {
   id: string;
   first_contact_id: string;
   second_contact_id: string;
   reason: string | null;
-  status: "made" | "progressing" | "led-somewhere" | "gone-cold";
+  status: IntroductionStatus;
   created_at: string;
+}
+
+export interface IntroductionWithOther extends Introduction {
+  other: Contact | null;
 }
 
 export type LinkedInStatus = "draft" | "approved" | "ignored" | "posted";

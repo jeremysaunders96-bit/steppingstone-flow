@@ -48,8 +48,12 @@ create table if not exists public.deal_contacts (
   id uuid primary key default gen_random_uuid(),
   deal_id uuid not null references public.deals(id) on delete cascade,
   contact_id uuid not null references public.contacts(id) on delete cascade,
+  role_in_deal text,
   unique (deal_id, contact_id)
 );
+
+-- If you previously created deal_contacts without role_in_deal, run:
+-- alter table public.deal_contacts add column if not exists role_in_deal text;
 
 -- INTRODUCTIONS ----------------------------------------------------------
 create table if not exists public.introductions (
