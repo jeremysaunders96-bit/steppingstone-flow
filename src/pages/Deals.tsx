@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Briefcase, Users } from "lucide-react";
 import { supabase, type Contact, type Deal, type DealStage, type DealType, type Interaction } from "@/lib/supabase";
 import { formatLongDate, formatMoney } from "@/lib/format";
 import { Input } from "@/components/ui/input";
@@ -11,21 +11,43 @@ import { AddDealModal } from "@/components/modals/AddDealModal";
 import { AddNoteModal } from "@/components/modals/AddNoteModal";
 import { toast } from "sonner";
 
-type DealRow = Deal & { last_activity_date: string | null; days_since_activity: number | null };
+type DealRow = Deal & {
+  last_activity_date: string | null;
+  days_since_activity: number | null;
+};
 type LinkedContact = Contact & { role_in_deal: string | null };
 type FeedRow = Interaction & { contact: Contact | null };
 
-const STAGES: DealStage[] = ["active","progressing","stalled","done"];
+const STANDARD_STAGES: DealStage[] = ["active","progressing","stalled","done"];
+const INTRO_STAGES: DealStage[] = ["introduced","progressing","led-somewhere","gone-cold"];
+
+function isIntroType(t: DealType | null | undefined) {
+  return t === "one-off-introduction";
+}
+function stagesFor(t: DealType | null | undefined): DealStage[] {
+  return isIntroType(t) ? INTRO_STAGES : STANDARD_STAGES;
+}
 
 const TYPE_LABEL: Record<DealType, string> = {
   "capital-raise": "Capital Raise",
   "introduction-mandate": "Intro Mandate",
   "advisory": "Advisory",
   "other": "Other",
+  "one-off-introduction": "Introduction",
 };
 
 function dealTypeLabel(t: DealType | null | undefined) {
   return t ? TYPE_LABEL[t] : null;
+}
+
+type FilterKey = "all" | "capital-raise" | "introduction" | "advisory";
+
+function matchesFilter(t: DealType | null | undefined, f: FilterKey): boolean {
+  if (f === "all") return true;
+  if (f === "capital-raise") return t === "capital-raise" || t === "introduction-mandate";
+  if (f === "introduction") return t === "one-off-introduction";
+  if (f === "advisory") return t === "advisory" || t === "other";
+  return true;
 }
 
 export default function Deals() {
@@ -33,8 +55,11 @@ export default function Deals() {
   const [params, setParams] = useSearchParams();
 
   const [deals, setDeals] = useState<DealRow[]>([]);
+  // Map of deal_id -> linked contacts (used by left list for intro deals)
+  const [dealContactsMap, setDealContactsMap] = useState<Record<string, LinkedContact[]>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [filter, setFilter] = useState<FilterKey>("all");
 
   const loadDeals = useCallback(async () => {
     const { data: viewData, error: viewErr } = await supabase
@@ -51,27 +76,47 @@ export default function Deals() {
         description: r.description ?? null,
         target_amount: r.target_amount ?? null,
         created_at: r.created_at ?? "",
-        deal_type: r.deal_type ?? null, client_name: r.client_name ?? null,
-        start_date: r.start_date ?? null, target_close_date: r.target_close_date ?? null,
+        deal_type: r.deal_type ?? null,
+        client_name: r.client_name ?? null,
+        start_date: r.start_date ?? null,
+        target_close_date: r.target_close_date ?? null,
         commission_structure: r.commission_structure ?? null,
-        next_action: r.next_action ?? null, next_action_date: r.next_action_date ?? null,
+        next_action: r.next_action ?? null,
+        next_action_date: r.next_action_date ?? null,
+        latest_update: r.latest_update ?? null,
         last_activity_date: r.last_activity_date ?? null,
         days_since_activity: r.days_since_activity ?? null,
       }));
     }
     rows.sort((a,b) => (b.created_at || "").localeCompare(a.created_at || ""));
     setDeals(rows);
+
+    // Pull linked contacts for all deals (used by left list and detail).
+    const { data: dcData } = await supabase
+      .from("deal_contacts").select("deal_id, role_in_deal, contact:contacts(*)");
+    const map: Record<string, LinkedContact[]> = {};
+    ((dcData || []) as any[]).forEach(r => {
+      if (!r.contact) return;
+      const list = map[r.deal_id] || (map[r.deal_id] = []);
+      list.push({ ...(r.contact as Contact), role_in_deal: r.role_in_deal });
+    });
+    setDealContactsMap(map);
   }, []);
 
   useEffect(() => { loadDeals(); }, [loadDeals]);
 
-  // Initial selection: ?deal= param, then first deal.
+  const filteredDeals = useMemo(
+    () => deals.filter(d => matchesFilter(d.deal_type, filter)),
+    [deals, filter]
+  );
+
+  // Initial selection: ?deal= param, then first filtered deal.
   useEffect(() => {
-    if (selectedId) return;
+    if (selectedId && deals.some(d => d.id === selectedId)) return;
     const fromUrl = params.get("deal");
     if (fromUrl && deals.some(d => d.id === fromUrl)) { setSelectedId(fromUrl); return; }
-    if (deals.length > 0) setSelectedId(deals[0].id);
-  }, [deals, selectedId, params]);
+    if (filteredDeals.length > 0) setSelectedId(filteredDeals[0].id);
+  }, [deals, filteredDeals, selectedId, params]);
 
   const selectDeal = (id: string) => {
     setSelectedId(id);
@@ -87,6 +132,13 @@ export default function Deals() {
 
   const onDealUpdated = async () => { await loadDeals(); };
 
+  const FILTERS: { key: FilterKey; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "capital-raise", label: "Capital Raise" },
+    { key: "introduction", label: "Introductions" },
+    { key: "advisory", label: "Advisory" },
+  ];
+
   return (
     <div className="-mx-6 md:-mx-10 -my-8 md:-my-10 flex min-h-[calc(100vh-3rem)]">
       {/* LEFT PANEL */}
@@ -100,17 +152,37 @@ export default function Deals() {
             + Add Deal
           </button>
         </div>
+
+        {/* Filter chips */}
+        <div className="px-3 pb-3 flex flex-wrap gap-1">
+          {FILTERS.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`text-[11px] px-2 py-1 rounded-full transition-colors ${
+                filter === f.key
+                  ? "bg-white text-teal font-medium"
+                  : "bg-white/10 text-white/85 hover:bg-white/20"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex-1 overflow-y-auto pb-6">
-          {deals.length === 0 ? (
-            <div className="px-5 py-8 text-sm italic text-white/60">No deals yet.</div>
+          {filteredDeals.length === 0 ? (
+            <div className="px-5 py-8 text-sm italic text-white/60">No deals match this filter.</div>
           ) : (
             <ul>
-              {deals.map(d => {
+              {filteredDeals.map(d => {
                 const isActive = d.id === selectedId;
                 const typeLbl = dealTypeLabel(d.deal_type);
                 const staleness = d.last_activity_date == null
                   ? "No activity"
                   : `${d.days_since_activity ?? 0}d since activity`;
+                const isIntro = isIntroType(d.deal_type);
+                const intros = isIntro ? (dealContactsMap[d.id] || []).slice(0, 2) : [];
                 return (
                   <li key={d.id}>
                     <button
@@ -119,16 +191,28 @@ export default function Deals() {
                         isActive ? "bg-[hsl(195_42%_36%)]" : "hover:bg-[hsl(195_42%_24%)]"
                       }`}
                     >
-                      <div className="font-display text-base text-white truncate">{d.name}</div>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        {typeLbl && (
-                          <span className="text-[10px] uppercase tracking-wide text-teal-light">{typeLbl}</span>
-                        )}
-                        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-white/15 text-white">
-                          {d.stage}
-                        </span>
+                      <div className="flex items-start gap-2">
+                        {isIntro
+                          ? <Users className="h-4 w-4 mt-1 text-teal-light shrink-0" />
+                          : <Briefcase className="h-4 w-4 mt-1 text-teal-light shrink-0" />}
+                        <div className="min-w-0 flex-1">
+                          <div className="font-display text-base text-white truncate">{d.name}</div>
+                          {isIntro && intros.length > 0 && (
+                            <div className="text-[11px] text-white/70 truncate mt-0.5">
+                              {intros.map(c => c.full_name).join(" / ")}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            {typeLbl && (
+                              <span className="text-[10px] uppercase tracking-wide text-teal-light">{typeLbl}</span>
+                            )}
+                            <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-white/15 text-white">
+                              {d.stage}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-white/60 mt-1">{staleness}</div>
+                        </div>
                       </div>
-                      <div className="text-[11px] text-white/60 mt-1">{staleness}</div>
                     </button>
                   </li>
                 );
@@ -162,6 +246,9 @@ export default function Deals() {
 function DealDetail({
   deal, onChanged, onOpenContact,
 }: { deal: DealRow; onChanged: () => void; onOpenContact: (id: string) => void }) {
+  const intro = isIntroType(deal.deal_type);
+  const stages = stagesFor(deal.deal_type);
+
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Partial<Deal>>({});
 
@@ -231,6 +318,8 @@ function DealDetail({
       next_action: deal.next_action,
       next_action_date: deal.next_action_date,
       target_amount: deal.target_amount,
+      latest_update: deal.latest_update,
+      description: deal.description,
     });
     setEditing(true);
   };
@@ -243,6 +332,11 @@ function DealDetail({
   const saveNextActionInline = async (val: string) => {
     if (val === (deal.next_action || "")) return;
     await updateDealField({ next_action: val.trim() || null });
+  };
+
+  const saveLatestUpdateInline = async (val: string) => {
+    if (val === (deal.latest_update || "")) return;
+    await updateDealField({ latest_update: val.trim() || null });
   };
 
   const linkContact = async () => {
@@ -279,16 +373,18 @@ function DealDetail({
                 </span>
               )}
               <Select value={deal.stage} onValueChange={(v)=>saveStage(v as DealStage)}>
-                <SelectTrigger className="h-7 w-[150px] text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 w-[160px] text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {STAGES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  {stages.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           </div>
-          <div className="font-display text-2xl text-ink">
-            {deal.target_amount != null ? formatMoney(deal.target_amount) : "TBC"}
-          </div>
+          {!intro && (
+            <div className="font-display text-2xl text-ink">
+              {deal.target_amount != null ? formatMoney(deal.target_amount) : "TBC"}
+            </div>
+          )}
         </div>
       </div>
 
@@ -297,7 +393,9 @@ function DealDetail({
         {/* Left: deal info */}
         <div className="card-soft p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-display text-lg text-teal">Deal information</h3>
+            <h3 className="font-display text-lg text-teal">
+              {intro ? "Introduction details" : "Deal information"}
+            </h3>
             {editing ? (
               <div className="flex gap-2">
                 <Button size="sm" variant="ghost" onClick={()=>setEditing(false)}>Cancel</Button>
@@ -309,63 +407,106 @@ function DealDetail({
           </div>
 
           <dl className="space-y-3 text-sm">
-            <Field label="Client name">
-              {editing ? (
-                <Input value={draft.client_name ?? ""} onChange={e=>setDraft({...draft, client_name: e.target.value})} />
-              ) : (deal.client_name || "—")}
-            </Field>
-            <Field label="Target amount">
-              {editing ? (
-                <Input
-                  type="number"
-                  value={draft.target_amount == null ? "" : String(draft.target_amount)}
-                  onChange={e=>setDraft({...draft, target_amount: e.target.value ? Number(e.target.value) : null})}
-                />
-              ) : (deal.target_amount != null ? formatMoney(deal.target_amount) : "TBC")}
-            </Field>
-            <Field label="Start date">
-              {editing ? (
-                <Input type="date" value={draft.start_date ?? ""} onChange={e=>setDraft({...draft, start_date: e.target.value || null})} />
-              ) : formatLongDate(deal.start_date)}
-            </Field>
-            <Field label="Target close date">
-              {editing ? (
-                <Input type="date" value={draft.target_close_date ?? ""} onChange={e=>setDraft({...draft, target_close_date: e.target.value || null})} />
-              ) : formatLongDate(deal.target_close_date)}
-            </Field>
-            <Field label="Commission structure">
-              {editing ? (
-                <Textarea rows={2} value={draft.commission_structure ?? ""} onChange={e=>setDraft({...draft, commission_structure: e.target.value})} />
-              ) : (
-                <div className="bg-teal-light/40 text-ink/80 rounded-md px-3 py-2 text-sm whitespace-pre-wrap min-h-[2.5rem]">
-                  {deal.commission_structure || <span className="italic text-muted-foreground">Not set</span>}
-                </div>
-              )}
-            </Field>
-            <Field label="Next action">
-              {editing ? (
-                <Input value={draft.next_action ?? ""} onChange={e=>setDraft({...draft, next_action: e.target.value})} />
-              ) : (
-                <InlineEditableText
-                  value={deal.next_action || ""}
-                  placeholder="Click to set next action…"
-                  onSave={saveNextActionInline}
-                />
-              )}
-            </Field>
-            <Field label="Next action date">
-              {editing ? (
-                <Input type="date" value={draft.next_action_date ?? ""} onChange={e=>setDraft({...draft, next_action_date: e.target.value || null})} />
-              ) : formatLongDate(deal.next_action_date)}
-            </Field>
+            {intro ? (
+              <>
+                <Field label="Reason for introduction">
+                  {editing ? (
+                    <Textarea rows={3} value={draft.description ?? ""} onChange={e=>setDraft({...draft, description: e.target.value})} />
+                  ) : (
+                    <div className="whitespace-pre-wrap min-h-[2rem]">
+                      {deal.description || <span className="italic text-muted-foreground">Not set</span>}
+                    </div>
+                  )}
+                </Field>
+                <Field label="Commission structure">
+                  {editing ? (
+                    <Textarea rows={2} value={draft.commission_structure ?? ""} onChange={e=>setDraft({...draft, commission_structure: e.target.value})} />
+                  ) : (
+                    <div className="bg-teal-light/40 text-ink/80 rounded-md px-3 py-2 text-sm whitespace-pre-wrap min-h-[2.5rem]">
+                      {deal.commission_structure || <span className="italic text-muted-foreground">Not set</span>}
+                    </div>
+                  )}
+                </Field>
+                <Field label="Date made">
+                  {editing ? (
+                    <Input type="date" value={draft.start_date ?? ""} onChange={e=>setDraft({...draft, start_date: e.target.value || null})} />
+                  ) : formatLongDate(deal.start_date)}
+                </Field>
+                <Field label="Latest update">
+                  {editing ? (
+                    <Input value={draft.latest_update ?? ""} onChange={e=>setDraft({...draft, latest_update: e.target.value})} />
+                  ) : (
+                    <InlineEditableText
+                      value={deal.latest_update || ""}
+                      placeholder="Click to add latest update…"
+                      onSave={saveLatestUpdateInline}
+                    />
+                  )}
+                </Field>
+              </>
+            ) : (
+              <>
+                <Field label="Client name">
+                  {editing ? (
+                    <Input value={draft.client_name ?? ""} onChange={e=>setDraft({...draft, client_name: e.target.value})} />
+                  ) : (deal.client_name || "—")}
+                </Field>
+                <Field label={deal.deal_type === "advisory" || deal.deal_type === "other" ? "Fee (if applicable)" : "Target amount"}>
+                  {editing ? (
+                    <Input
+                      type="number"
+                      value={draft.target_amount == null ? "" : String(draft.target_amount)}
+                      onChange={e=>setDraft({...draft, target_amount: e.target.value ? Number(e.target.value) : null})}
+                    />
+                  ) : (deal.target_amount != null ? formatMoney(deal.target_amount) : "TBC")}
+                </Field>
+                <Field label="Start date">
+                  {editing ? (
+                    <Input type="date" value={draft.start_date ?? ""} onChange={e=>setDraft({...draft, start_date: e.target.value || null})} />
+                  ) : formatLongDate(deal.start_date)}
+                </Field>
+                <Field label="Target close date">
+                  {editing ? (
+                    <Input type="date" value={draft.target_close_date ?? ""} onChange={e=>setDraft({...draft, target_close_date: e.target.value || null})} />
+                  ) : formatLongDate(deal.target_close_date)}
+                </Field>
+                <Field label="Commission structure">
+                  {editing ? (
+                    <Textarea rows={2} value={draft.commission_structure ?? ""} onChange={e=>setDraft({...draft, commission_structure: e.target.value})} />
+                  ) : (
+                    <div className="bg-teal-light/40 text-ink/80 rounded-md px-3 py-2 text-sm whitespace-pre-wrap min-h-[2.5rem]">
+                      {deal.commission_structure || <span className="italic text-muted-foreground">Not set</span>}
+                    </div>
+                  )}
+                </Field>
+                <Field label="Next action">
+                  {editing ? (
+                    <Input value={draft.next_action ?? ""} onChange={e=>setDraft({...draft, next_action: e.target.value})} />
+                  ) : (
+                    <InlineEditableText
+                      value={deal.next_action || ""}
+                      placeholder="Click to set next action…"
+                      onSave={saveNextActionInline}
+                    />
+                  )}
+                </Field>
+                <Field label="Next action date">
+                  {editing ? (
+                    <Input type="date" value={draft.next_action_date ?? ""} onChange={e=>setDraft({...draft, next_action_date: e.target.value || null})} />
+                  ) : formatLongDate(deal.next_action_date)}
+                </Field>
+              </>
+            )}
           </dl>
         </div>
 
         {/* Right: linked contacts */}
         <div className="card-soft p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-display text-lg text-teal">Linked contacts</h3>
-            {!linking && (
+            <h3 className="font-display text-lg text-teal">
+              {intro ? "Introduction" : "Linked contacts"}
+            </h3>
+            {!linking && (!intro || contacts.length < 2) && (
               <button
                 onClick={()=>setLinking(true)}
                 className="text-xs font-medium px-2.5 py-1 rounded bg-teal-light text-teal hover:bg-teal-light/80"
@@ -405,7 +546,8 @@ function DealDetail({
               )}
               <div className="flex items-center gap-2">
                 <Input value={role} onChange={e=>setRole(e.target.value)}
-                  placeholder="e.g. Investor, Introducer, Advisor" className="flex-1" />
+                  placeholder={intro ? "Role (e.g. Introducing, To)" : "e.g. Investor, Introducer, Advisor"}
+                  className="flex-1" />
                 <button disabled={!picked} onClick={linkContact}
                   className="px-3 py-2 rounded-md text-sm font-medium bg-teal text-white hover:bg-teal/90 disabled:opacity-50">
                   Link
@@ -417,7 +559,27 @@ function DealDetail({
           )}
 
           {contacts.length === 0 ? (
-            <div className="text-sm italic text-muted-foreground">No contacts linked yet.</div>
+            <div className="text-sm italic text-muted-foreground">
+              {intro ? "Pick the two contacts being introduced." : "No contacts linked yet."}
+            </div>
+          ) : intro ? (
+            <div className="space-y-3">
+              {contacts.slice(0, 2).map((c, i) => (
+                <div key={c.id} className="border rounded-md px-3 py-2 flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[10px] uppercase tracking-wide text-teal">
+                      {c.role_in_deal || (i === 0 ? "Introducing" : "To")}
+                    </div>
+                    <button className="font-bold text-base hover:text-teal text-left" onClick={()=>onOpenContact(c.id)}>
+                      {c.full_name}
+                    </button>
+                    {c.company && <div className="text-sm text-muted-foreground">{c.company}</div>}
+                  </div>
+                  <button onClick={()=>removeContact(c.id)}
+                    className="text-xs text-muted-foreground hover:text-destructive">Remove</button>
+                </div>
+              ))}
+            </div>
           ) : (
             <ul className="divide-y">
               {contacts.map(c => (

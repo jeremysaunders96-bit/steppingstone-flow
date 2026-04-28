@@ -52,8 +52,15 @@ export interface Interaction {
   created_at: string;
 }
 
-export type DealStage = "active" | "progressing" | "stalled" | "done";
-export type DealType = "capital-raise" | "introduction-mandate" | "advisory" | "other";
+export type DealStage =
+  | "active" | "progressing" | "stalled" | "done"
+  | "introduced" | "led-somewhere" | "gone-cold";
+export type DealType =
+  | "capital-raise"
+  | "introduction-mandate"
+  | "advisory"
+  | "other"
+  | "one-off-introduction";
 
 export interface Deal {
   id: string;
@@ -69,6 +76,7 @@ export interface Deal {
   commission_structure: string | null;
   next_action: string | null;
   next_action_date: string | null;
+  latest_update: string | null;
 }
 
 export interface DealContact {
