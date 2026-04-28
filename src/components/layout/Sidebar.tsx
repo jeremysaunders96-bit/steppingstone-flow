@@ -1,16 +1,19 @@
 import { NavLink } from "react-router-dom";
-import { Home, Users, Linkedin, Mail } from "lucide-react";
+import { Home, Users, Linkedin, Mail, Briefcase } from "lucide-react";
 import { useAttentionCount } from "@/hooks/useAttentionCount";
+import { useActiveDealsCount } from "@/hooks/useActiveDealsCount";
 import { Button } from "@/components/ui/button";
 
 const items = [
   { to: "/", label: "Home", icon: Home, end: true, key: "home" as const },
   { to: "/contacts", label: "Contacts", icon: Users, end: false, key: "contacts" as const },
+  { to: "/deals", label: "Deals", icon: Briefcase, end: false, key: "deals" as const },
   { to: "/linkedin", label: "LinkedIn Queue", icon: Linkedin, end: false, key: "linkedin" as const },
 ];
 
 export function Sidebar({ onComposeClick }: { onComposeClick?: () => void }) {
   const attention = useAttentionCount();
+  const activeDeals = useActiveDealsCount();
   return (
     <aside className="hidden md:flex md:flex-col w-[240px] shrink-0 bg-teal text-white min-h-screen">
       <div className="px-6 pt-8 pb-10">
@@ -37,6 +40,11 @@ export function Sidebar({ onComposeClick }: { onComposeClick?: () => void }) {
               {it.key === "home" && attention > 0 && (
                 <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-orange text-white text-[11px] font-semibold leading-none">
                   {attention}
+                </span>
+              )}
+              {it.key === "deals" && activeDeals > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-orange text-white text-[11px] font-semibold leading-none">
+                  {activeDeals}
                 </span>
               )}
             </NavLink>

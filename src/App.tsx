@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import Contacts from "./pages/Contacts";
 import ContactDetail from "./pages/ContactDetail";
 import LinkedInQueue from "./pages/LinkedInQueue";
+import Deals from "./pages/Deals";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -23,6 +24,7 @@ const App = () => (
             <Route path="/" element={<Home />} />
             <Route path="/contacts" element={<Contacts />} />
             <Route path="/contacts/:id" element={<ContactDetail />} />
+            <Route path="/deals" element={<Deals />} />
             <Route path="/linkedin" element={<LinkedInQueue />} />
           </Route>
           <Route path="*" element={<NotFound />} />
