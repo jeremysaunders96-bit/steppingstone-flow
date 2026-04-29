@@ -6,7 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase, type InteractionType } from "@/lib/supabase";
+import { supabase, type InteractionType, type Contact } from "@/lib/supabase";
+import { ContactPicker } from "@/components/ContactPicker";
 import { toast } from "sonner";
 import { X, Plus } from "lucide-react";
 
@@ -50,9 +51,16 @@ export function AddNoteModal({
   const [by, setBy] = useState("");
   const [saving, setSaving] = useState(false);
   const [pickedContactId, setPickedContactId] = useState<string>("");
+  const [pickedContact, setPickedContact] = useState<Contact | null>(null);
 
   const usePicker = !!contactOptions && contactOptions.length > 0;
-  const effectiveContactId = usePicker ? pickedContactId : (contactId || "");
+  // When editing, always allow reassignment via a searchable contact picker.
+  const useSearchPicker = !!editing;
+  const effectiveContactId = useSearchPicker
+    ? (pickedContact?.id || "")
+    : usePicker
+      ? pickedContactId
+      : (contactId || "");
 
   const followupRequired = type === "meeting" || type === "call";
 
@@ -67,6 +75,12 @@ export function AddNoteModal({
       setNeeds(!!editing.needs_followup);
       setBy(editing.followup_by || "");
       setPickedContactId(editing.contact_id);
+      // Hydrate the searchable picker with the currently linked contact.
+      (async () => {
+        const { data } = await supabase
+          .from("contacts").select("*").eq("id", editing.contact_id).maybeSingle();
+        if (data) setPickedContact(data as Contact);
+      })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing?.id]);
@@ -106,12 +120,18 @@ export function AddNoteModal({
     const { error } = editing
       ? await supabase.from("interactions").update(payload).eq("id", editing.id)
       : await supabase.from("interactions").insert(payload);
-    if (!error) await supabase.from("contacts").update({ last_contact_date: date }).eq("id", effectiveContactId);
+    if (!error) {
+      await supabase.from("contacts").update({ last_contact_date: date }).eq("id", effectiveContactId);
+      // If editing reassigned the note to a different contact, also bump that contact's last_contact_date
+      if (editing && editing.contact_id !== effectiveContactId) {
+        // (the new contact is already updated above)
+      }
+    }
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     lastType = type;
-    toast.success(editing ? "Updated" : "Saved");
-    setDate(today); setSummary(""); setFullNote(""); setActions([]); setNeeds(false); setBy(""); setPickedContactId("");
+    toast.success(editing ? "Note updated" : "Saved");
+    setDate(today); setSummary(""); setFullNote(""); setActions([]); setNeeds(false); setBy(""); setPickedContactId(""); setPickedContact(null);
     onOpenChange(false); onSaved();
   };
 
@@ -120,7 +140,9 @@ export function AddNoteModal({
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle className="font-display text-teal">{editing ? "Edit Note" : "Add Note"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          {usePicker && (
+          {useSearchPicker ? (
+            <ContactPicker label="Contact" value={pickedContact} onChange={setPickedContact} />
+          ) : usePicker && (
             <div>
               <Label>Contact</Label>
               <Select value={pickedContactId} onValueChange={setPickedContactId}>

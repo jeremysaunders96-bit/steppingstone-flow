@@ -9,6 +9,7 @@ const corsHeaders = {
 
 interface RequestBody {
   transcript: string;
+  mode?: "extract" | "punctuate";
 }
 
 interface MeetingExtraction {
@@ -60,6 +61,7 @@ Deno.serve(async (req) => {
 
     const body = (await req.json()) as RequestBody;
     const transcript = (body?.transcript || "").trim();
+    const mode = body?.mode === "punctuate" ? "punctuate" : "extract";
     if (!transcript) {
       return new Response(JSON.stringify({ error: "Transcript is required." }), {
         status: 400,
@@ -67,10 +69,30 @@ Deno.serve(async (req) => {
       });
     }
 
+    const client = new Anthropic({ apiKey });
+
+    if (mode === "punctuate") {
+      const punctSystem =
+        "Add correct punctuation, capitalisation and paragraph breaks to this transcript. Do not change, add or remove any words - only add punctuation and formatting. Return only the cleaned transcript with no other text.";
+      const punctResp = await client.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 4000,
+        system: punctSystem,
+        messages: [{ role: "user", content: transcript }],
+      });
+      const cleaned = punctResp.content
+        .filter((b) => b.type === "text")
+        .map((b) => (b as { text: string }).text)
+        .join("\n")
+        .trim();
+      return new Response(JSON.stringify({ cleaned: cleaned || transcript }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const systemPrompt =
       "You are processing a meeting transcript for William Meadon, founder of Steppingstone. Extract the following and return ONLY a JSON object with no other text, no markdown, no backticks: contact_name (string or null), company (string or null), key_points (array of 3-5 strings, each a concise summary of a key discussion point), action_items (array of strings, each a specific follow-up or next step), additional_notes (string or null - anything else worth remembering).";
 
-    const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: "claude-sonnet-4-5",
       max_tokens: 1500,

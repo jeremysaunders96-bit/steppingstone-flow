@@ -264,6 +264,7 @@ function DealDetail({
   const [role, setRole] = useState("");
 
   const [noteOpen, setNoteOpen] = useState(false);
+  const [editingFeed, setEditingFeed] = useState<FeedRow | null>(null);
 
   const loadContacts = useCallback(async () => {
     const { data } = await supabase.from("deal_contacts")
@@ -609,24 +610,30 @@ function DealDetail({
               const open = !!expanded[i.id];
               return (
                 <div key={i.id} className="px-5 py-3">
-                  <button
-                    onClick={()=>setExpanded(s => ({...s, [i.id]: !open}))}
-                    className="w-full text-left flex items-start gap-3"
-                  >
-                    <span className="mt-1">
-                      {open ? <ChevronDown className="h-4 w-4 text-muted-foreground"/> : <ChevronRight className="h-4 w-4 text-muted-foreground"/>}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2 flex-wrap text-xs">
-                        <span className="text-muted-foreground">{formatLongDate(i.date)}</span>
-                        {i.contact && (
-                          <span className="text-teal">{i.contact.full_name}</span>
-                        )}
-                        <span className="uppercase tracking-wide text-muted-foreground">{i.type}</span>
+                  <div className="flex items-start gap-3">
+                    <button
+                      onClick={()=>setExpanded(s => ({...s, [i.id]: !open}))}
+                      className="flex-1 text-left flex items-start gap-3"
+                    >
+                      <span className="mt-1">
+                        {open ? <ChevronDown className="h-4 w-4 text-muted-foreground"/> : <ChevronRight className="h-4 w-4 text-muted-foreground"/>}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 flex-wrap text-xs">
+                          <span className="text-muted-foreground">{formatLongDate(i.date)}</span>
+                          {i.contact && (
+                            <span className="text-teal">{i.contact.full_name}</span>
+                          )}
+                          <span className="uppercase tracking-wide text-muted-foreground">{i.type}</span>
+                        </div>
+                        <div className="font-semibold text-ink mt-0.5">{i.summary}</div>
                       </div>
-                      <div className="font-semibold text-ink mt-0.5">{i.summary}</div>
-                    </div>
-                  </button>
+                    </button>
+                    <button
+                      className="text-xs text-teal hover:underline shrink-0 mt-1"
+                      onClick={()=>setEditingFeed(i)}
+                    >Edit</button>
+                  </div>
                   {open && i.full_note && (
                     <p className="pl-7 mt-2 text-sm text-ink/80 whitespace-pre-wrap">{i.full_note}</p>
                   )}
@@ -655,6 +662,23 @@ function DealDetail({
         onOpenChange={setNoteOpen}
         contactOptions={contacts.map(c => ({ id: c.id, full_name: c.full_name, company: c.company }))}
         onSaved={() => loadFeed(contacts.map(c => c.id))}
+      />
+
+      <AddNoteModal
+        open={!!editingFeed}
+        onOpenChange={(v)=>{ if (!v) setEditingFeed(null); }}
+        editing={editingFeed ? {
+          id: editingFeed.id,
+          contact_id: editingFeed.contact_id,
+          date: editingFeed.date,
+          type: editingFeed.type,
+          summary: editingFeed.summary,
+          full_note: editingFeed.full_note,
+          action_items: editingFeed.action_items,
+          needs_followup: editingFeed.needs_followup,
+          followup_by: editingFeed.followup_by,
+        } : null}
+        onSaved={() => { setEditingFeed(null); loadFeed(contacts.map(c => c.id)); }}
       />
     </div>
   );

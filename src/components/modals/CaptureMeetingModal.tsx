@@ -8,8 +8,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Mic, Loader2, X, Plus, RefreshCw } from "lucide-react";
 import { ContactPicker } from "@/components/ContactPicker";
+import { DealPicker } from "@/components/DealPicker";
 import { AddContactModal } from "@/components/modals/AddContactModal";
-import { supabase, type Contact } from "@/lib/supabase";
+import { supabase, type Contact, type Deal } from "@/lib/supabase";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -81,11 +82,13 @@ export function CaptureMeetingModal({
   const [extracting, setExtracting] = useState(false);
   const [extraction, setExtraction] = useState<Extraction | null>(null);
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [punctuating, setPunctuating] = useState(false);
 
   const [primaryContact, setPrimaryContact] = useState<Contact | null>(null);
   const [extraContacts, setExtraContacts] = useState<(Contact | null)[]>([]);
   const [addContactOpen, setAddContactOpen] = useState(false);
   const [pendingPrePopulate, setPendingPrePopulate] = useState(false);
+  const [linkedDeal, setLinkedDeal] = useState<Deal | null>(null);
 
   const [dateStr, setDateStr] = useState(isoToDDMMYYYY(todayISO()));
   const [type, setType] = useState<MeetingType>("meeting");
@@ -108,6 +111,7 @@ export function CaptureMeetingModal({
       setExtractError(null);
       setPrimaryContact(null);
       setExtraContacts([]);
+      setLinkedDeal(null);
       setDateStr(isoToDDMMYYYY(todayISO()));
       setType("meeting");
       setNeedsFollowup(true);
@@ -248,9 +252,33 @@ export function CaptureMeetingModal({
   async function goToReview() {
     stopListening();
     setStep("review");
-    if (transcript.trim()) {
-      await callExtract(transcript);
+    if (!transcript.trim()) return;
+    // 1. Punctuate the raw transcript
+    setPunctuating(true);
+    let cleaned = transcript;
+    try {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-meeting`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ transcript, mode: "punctuate" }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && typeof data?.cleaned === "string" && data.cleaned.trim()) {
+        cleaned = data.cleaned.trim();
+        setTranscript(cleaned);
+      }
+    } catch {
+      // fall through with original transcript
+    } finally {
+      setPunctuating(false);
     }
+    // 2. Extract structured info from the cleaned transcript
+    await callExtract(cleaned);
   }
 
   function addExtraContactSlot() {
@@ -357,6 +385,21 @@ export function CaptureMeetingModal({
               .eq("id", c.id),
           ),
         );
+        // Link selected contacts to the chosen deal (if any), skipping existing links
+        if (linkedDeal) {
+          const { data: existing } = await supabase
+            .from("deal_contacts")
+            .select("contact_id")
+            .eq("deal_id", linkedDeal.id)
+            .in("contact_id", selected.map((c) => c.id));
+          const linkedIds = new Set(((existing || []) as { contact_id: string }[]).map((r) => r.contact_id));
+          const toInsert = selected
+            .filter((c) => !linkedIds.has(c.id))
+            .map((c) => ({ deal_id: linkedDeal.id, contact_id: c.id, role_in_deal: "Meeting participant" }));
+          if (toInsert.length > 0) {
+            await supabase.from("deal_contacts").insert(toInsert);
+          }
+        }
         toast.success(
           `Meeting captured and saved to ${selected.map((c) => c.full_name).join(", ")} record`,
         );
@@ -464,11 +507,19 @@ export function CaptureMeetingModal({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   {/* LEFT — raw transcript */}
                   <div className="card-soft p-4 flex flex-col">
-                    <div className="font-display text-lg text-teal mb-2">What you said</div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="font-display text-lg text-teal">What you said</div>
+                      {punctuating && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Cleaning up…
+                        </div>
+                      )}
+                    </div>
                     <Textarea
                       value={transcript}
                       onChange={(e) => setTranscript(e.target.value)}
                       className="flex-1 min-h-[260px]"
+                      disabled={punctuating}
                     />
                   </div>
 
@@ -582,6 +633,14 @@ export function CaptureMeetingModal({
                       </button>
                     )}
                   </div>
+
+                {/* Deal link */}
+                <div>
+                  <Label>Link to deal (optional)</Label>
+                  <div className="mt-1">
+                    <DealPicker label="" value={linkedDeal} onChange={setLinkedDeal} />
+                  </div>
+                </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
