@@ -507,11 +507,19 @@ export function CaptureMeetingModal({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   {/* LEFT — raw transcript */}
                   <div className="card-soft p-4 flex flex-col">
-                    <div className="font-display text-lg text-teal mb-2">What you said</div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="font-display text-lg text-teal">What you said</div>
+                      {punctuating && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Cleaning up…
+                        </div>
+                      )}
+                    </div>
                     <Textarea
                       value={transcript}
                       onChange={(e) => setTranscript(e.target.value)}
                       className="flex-1 min-h-[260px]"
+                      disabled={punctuating}
                     />
                   </div>
 
@@ -625,6 +633,14 @@ export function CaptureMeetingModal({
                       </button>
                     )}
                   </div>
+
+                {/* Deal link */}
+                <div>
+                  <Label>Link to deal (optional)</Label>
+                  <div className="mt-1">
+                    <DealPicker label="" value={linkedDeal} onChange={setLinkedDeal} />
+                  </div>
+                </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
