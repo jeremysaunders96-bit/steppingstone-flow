@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { ActionItemList } from "@/components/ActionItemList";
+import { ContactActionItemsTab } from "@/components/ContactActionItemsTab";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -170,6 +171,9 @@ export default function ContactDetail() {
             <TabsTrigger value="history" className="data-[state=active]:bg-background data-[state=active]:text-teal">
               History
             </TabsTrigger>
+            <TabsTrigger value="actions" className="data-[state=active]:bg-background data-[state=active]:text-teal">
+              Action Items
+            </TabsTrigger>
             <TabsTrigger value="introductions" className="data-[state=active]:bg-background data-[state=active]:text-teal">
               Introductions{intros.length > 0 && <span className="ml-1.5 text-xs text-muted-foreground">({intros.length})</span>}
             </TabsTrigger>
@@ -242,6 +246,10 @@ export default function ContactDetail() {
             <div className="mt-4">
               <Button variant="outline" onClick={()=>setNote(true)}>Add Note</Button>
             </div>
+          </TabsContent>
+
+          <TabsContent value="actions" className="mt-4">
+            <ContactActionItemsTab contactId={c.id} />
           </TabsContent>
 
           <TabsContent value="introductions" className="mt-4">

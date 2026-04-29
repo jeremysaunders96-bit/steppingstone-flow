@@ -1,8 +1,9 @@
 import { NavLink } from "react-router-dom";
-import { Home, Users, Linkedin, Mail, Briefcase, Calendar, AlertCircle, Mic } from "lucide-react";
+import { Home, Users, Linkedin, Mail, Briefcase, Calendar, AlertCircle, Mic, CheckSquare } from "lucide-react";
 import { useAttentionCount } from "@/hooks/useAttentionCount";
 import { useActiveDealsCount } from "@/hooks/useActiveDealsCount";
 import { useUnmatchedCount } from "@/hooks/useUnmatchedCount";
+import { useActionItemsCount } from "@/hooks/useActionItemsCount";
 import { Button } from "@/components/ui/button";
 
 export function Sidebar({
@@ -15,10 +16,12 @@ export function Sidebar({
   const attention = useAttentionCount();
   const activeDeals = useActiveDealsCount();
   const unmatched = useUnmatchedCount();
+  const actionItems = useActionItemsCount();
   const items = [
     { to: "/", label: "Home", icon: Home, end: true, key: "home" as const },
     { to: "/contacts", label: "Contacts", icon: Users, end: false, key: "contacts" as const },
     { to: "/meetings", label: "Meetings", icon: Calendar, end: false, key: "meetings" as const },
+    { to: "/action-items", label: "Action Items", icon: CheckSquare, end: false, key: "action-items" as const },
     { to: "/deals", label: "Deals", icon: Briefcase, end: false, key: "deals" as const },
     ...(unmatched > 0 ? [{ to: "/unmatched", label: "Unmatched", icon: AlertCircle, end: false, key: "unmatched" as const }] : []),
     { to: "/linkedin", label: "LinkedIn Queue", icon: Linkedin, end: false, key: "linkedin" as const },
@@ -65,6 +68,11 @@ export function Sidebar({
               {it.key === "deals" && activeDeals > 0 && (
                 <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-orange text-white text-[11px] font-semibold leading-none">
                   {activeDeals}
+                </span>
+              )}
+              {it.key === "action-items" && actionItems > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-orange text-white text-[11px] font-semibold leading-none">
+                  {actionItems}
                 </span>
               )}
               {it.key === "unmatched" && unmatched > 0 && (

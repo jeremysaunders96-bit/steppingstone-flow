@@ -11,6 +11,7 @@ import LinkedInQueue from "./pages/LinkedInQueue";
 import Deals from "./pages/Deals";
 import Meetings from "./pages/Meetings";
 import Unmatched from "./pages/Unmatched";
+import ActionItems from "./pages/ActionItems";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/contacts" element={<Contacts />} />
             <Route path="/contacts/:id" element={<ContactDetail />} />
             <Route path="/meetings" element={<Meetings />} />
+            <Route path="/action-items" element={<ActionItems />} />
             <Route path="/deals" element={<Deals />} />
             <Route path="/unmatched" element={<Unmatched />} />
             <Route path="/linkedin" element={<LinkedInQueue />} />

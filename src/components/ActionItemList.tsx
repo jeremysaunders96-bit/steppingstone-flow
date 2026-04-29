@@ -7,6 +7,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { emitActionItemsChanged } from "@/hooks/useActionItemsCount";
 
 function fmtDue(iso: string | null): string {
   if (!iso) return "No due date";
@@ -46,6 +47,7 @@ export function ActionItemList({
     await supabase.from("action_items")
       .update({ completed: next, completed_at: next ? new Date().toISOString() : null })
       .eq("id", item.id);
+    emitActionItemsChanged();
   };
 
   const setDue = async (item: ActionItem, d: Date) => {
