@@ -13,6 +13,10 @@ type Row = {
 };
 
 function todayStr() { return new Date().toISOString().slice(0,10); }
+function inDaysStr(n: number) {
+  const d = new Date(); d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0,10);
+}
 
 export function HomeActionItems() {
   const [rows, setRows] = useState<Row[]>([]);
@@ -23,7 +27,7 @@ export function HomeActionItems() {
       .from("action_items")
       .select("id, text, due_date, contact:contacts(id, full_name, company)")
       .eq("completed", false)
-      .lte("due_date", todayStr())
+      .lte("due_date", inDaysStr(3))
       .order("due_date", { ascending: true })
       .limit(7);
     setRows(((data || []) as any) as Row[]);
@@ -54,6 +58,8 @@ export function HomeActionItems() {
       <div className="card-soft divide-y">
         {rows.map(r => {
           const overdue = r.due_date && r.due_date < today;
+          const isToday = r.due_date === today;
+          const dueColor = overdue ? "text-orange" : isToday ? "text-teal" : "text-muted-foreground";
           return (
             <div key={r.id} className="flex items-center gap-3 px-5 py-3">
               <input type="checkbox" onChange={() => tick(r.id)} className="h-4 w-4" />
@@ -65,7 +71,7 @@ export function HomeActionItems() {
                   </Link>
                 )}
               </div>
-              <div className={cn("text-xs whitespace-nowrap", overdue ? "text-orange" : "text-muted-foreground")}>
+              <div className={cn("text-xs whitespace-nowrap", dueColor)}>
                 {r.due_date ? `Due ${format(new Date(r.due_date), "d MMM")}` : "No date"}
               </div>
             </div>
