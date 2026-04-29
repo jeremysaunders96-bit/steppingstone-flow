@@ -18,7 +18,7 @@ let lastType: InteractionType = "note";
 type LinkedContactOption = { id: string; full_name: string; company?: string | null };
 
 export function AddNoteModal({
-  open, onOpenChange, contactId, contactOptions, onSaved,
+  open, onOpenChange, contactId, contactOptions, onSaved, editing,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -27,6 +27,18 @@ export function AddNoteModal({
   /** When provided, render a contact picker at the top of the modal. */
   contactOptions?: LinkedContactOption[];
   onSaved: () => void;
+  /** When provided, edit this existing interaction instead of inserting a new one. */
+  editing?: {
+    id: string;
+    contact_id: string;
+    date: string;
+    type: InteractionType;
+    summary: string;
+    full_note: string | null;
+    action_items: { text: string; done: boolean }[] | null;
+    needs_followup: boolean;
+    followup_by: string | null;
+  } | null;
 }) {
   const today = new Date().toISOString().slice(0,10);
   const [date, setDate] = useState(today);
@@ -43,6 +55,21 @@ export function AddNoteModal({
   const effectiveContactId = usePicker ? pickedContactId : (contactId || "");
 
   const followupRequired = type === "meeting" || type === "call";
+
+  // When opening in edit mode, hydrate the form with the existing interaction.
+  useEffect(() => {
+    if (open && editing) {
+      setDate(editing.date);
+      setType(editing.type);
+      setSummary(editing.summary);
+      setFullNote(editing.full_note || "");
+      setActions((editing.action_items || []).map(a => a.text));
+      setNeeds(!!editing.needs_followup);
+      setBy(editing.followup_by || "");
+      setPickedContactId(editing.contact_id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editing?.id]);
 
   // When type flips to meeting/call, force needs_followup on and default to +4 days.
   useEffect(() => {
@@ -65,17 +92,25 @@ export function AddNoteModal({
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("interactions").insert({
+    const existingActions = editing?.action_items || [];
+    const mergedActions = actions.filter(Boolean).map((text, i) => {
+      const prev = existingActions[i];
+      return { text, done: prev ? prev.done : false };
+    });
+    const payload = {
       contact_id: effectiveContactId, date, type, summary: summary.trim(),
       full_note: fullNote.trim() || null,
-      action_items: actions.filter(Boolean).map(text => ({ text, done: false })),
+      action_items: mergedActions,
       needs_followup: needs, followup_by: needs && by ? by : null,
-    });
+    };
+    const { error } = editing
+      ? await supabase.from("interactions").update(payload).eq("id", editing.id)
+      : await supabase.from("interactions").insert(payload);
     if (!error) await supabase.from("contacts").update({ last_contact_date: date }).eq("id", effectiveContactId);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     lastType = type;
-    toast.success("Saved");
+    toast.success(editing ? "Updated" : "Saved");
     setDate(today); setSummary(""); setFullNote(""); setActions([]); setNeeds(false); setBy(""); setPickedContactId("");
     onOpenChange(false); onSaved();
   };
@@ -83,7 +118,7 @@ export function AddNoteModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle className="font-display text-teal">Add Note</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle className="font-display text-teal">{editing ? "Edit Note" : "Add Note"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           {usePicker && (
             <div>
