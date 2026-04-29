@@ -251,37 +251,14 @@ export default function Home() {
 
       {/* Today */}
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display text-2xl text-teal">Today</h2>
-          <Button variant="ghost" className="text-teal" onClick={() => setMeetingOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Add today's meeting
+        <h2 className="font-display text-2xl text-teal mb-4">Today</h2>
+        <div className="card-soft py-12 px-6 flex flex-col items-center text-center gap-3">
+          <CalendarDays className="h-10 w-10 text-muted-foreground/60" strokeWidth={1.5} />
+          <p className="text-sm italic text-muted-foreground">Your calendar isn't connected yet.</p>
+          <Button className="bg-teal hover:bg-teal/90 text-white mt-1">
+            Connect Google Calendar
           </Button>
         </div>
-        {meetings.length === 0 ? (
-          <div className="card-soft p-6 text-sm text-muted-foreground italic">No meetings logged for today.</div>
-        ) : (
-          <div className="card-soft divide-y">
-            {meetings.map(({ interaction, contact, recentNote }) => (
-              <div key={interaction.id} className="px-5 py-4">
-                <div className="flex items-baseline justify-between gap-4">
-                  <div>
-                    <div className="font-semibold text-ink">{contact?.full_name || "Unknown"}</div>
-                    <div className="text-xs text-muted-foreground">{contact?.company || ""}</div>
-                    <div className="text-sm text-ink/80 mt-1">{interaction.summary}</div>
-                    {recentNote && (
-                      <div className="text-xs italic text-muted-foreground mt-1.5">{recentNote.summary}</div>
-                    )}
-                  </div>
-                  {contact && (
-                    <Link to={`/contacts/${contact.id}`} className="text-sm text-teal hover:underline whitespace-nowrap">
-                      View contact
-                    </Link>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </section>
 
       {/* Active Deals */}
@@ -314,7 +291,6 @@ export default function Home() {
         )}
       </section>
 
-      <AddMeetingModal open={meetingOpen} onOpenChange={setMeetingOpen} onSaved={load} />
       <DraftEmailModal open={!!draftFor} onOpenChange={(v)=>!v && setDraftFor(null)} contactName={draftFor?.full_name} contact={draftFor} />
     </div>
   );
