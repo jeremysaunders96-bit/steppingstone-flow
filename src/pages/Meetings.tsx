@@ -246,6 +246,14 @@ export default function Meetings() {
                 {openRow.full_note && (
                   <div className="whitespace-pre-wrap text-ink/90 leading-relaxed pt-2 border-t">{openRow.full_note}</div>
                 )}
+                <div className="pt-2 border-t">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-ink/70 mb-2">Action items</div>
+                  <ActionItemList
+                    interactionId={openRow.id}
+                    needsFollowup={openRow.needs_followup}
+                    onAllCompleteChanged={() => { setOpenRow(null); load(); }}
+                  />
+                </div>
                 {openRow.action_items && openRow.action_items.length > 0 && (
                   <div className="pt-2 border-t">
                     <div className="text-xs font-semibold uppercase tracking-wide text-ink/70 mb-2">Action items</div>
@@ -312,6 +320,19 @@ export default function Meetings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deletingId} onOpenChange={(v)=>!v && setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this note?</AlertDialogTitle>
+            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={confirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
