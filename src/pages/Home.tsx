@@ -154,7 +154,7 @@ export default function Home() {
   useEffect(() => { load(); }, [load]);
 
   const allClear = !loading && owesReply.length === 0 && worthCall.length === 0
-    && dealPulse.length === 0 && upcoming.length === 0;
+    && upcoming.length === 0;
 
   return (
     <div className="space-y-12">
@@ -197,36 +197,6 @@ export default function Home() {
                         className="bg-teal hover:bg-teal/90 text-white"
                         onClick={() => setDraftFor(contact)}
                       >Draft Email</Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Deal Pulse */}
-            {dealPulse.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-ink/70 mb-2">Deal Pulse</h3>
-                <div className="card-soft divide-y">
-                  {dealPulse.map(({ deal, last_activity_date, days_since_activity }) => (
-                    <div key={deal.id} className="flex items-center gap-4 px-5 py-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-2 flex-wrap">
-                          <span className="font-semibold text-teal">{deal.name}</span>
-                          <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-teal-light text-teal">
-                            {deal.stage}
-                          </span>
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {last_activity_date == null
-                            ? "No activity logged"
-                            : `Last activity: ${days_since_activity} days ago`}
-                        </div>
-                      </div>
-                      <Link
-                        to={`/deals?deal=${deal.id}`}
-                        className="text-sm text-teal hover:underline whitespace-nowrap"
-                      >View deal</Link>
                     </div>
                   ))}
                 </div>
@@ -330,35 +300,26 @@ export default function Home() {
       <section>
         <h2 className="font-display text-2xl text-teal mb-4">Active Deals</h2>
         {activeDeals.length === 0 ? (
-          <div className="card-soft p-6 text-sm text-muted-foreground italic">
+          <div className="text-sm text-muted-foreground italic py-4">
             No active deals yet — add one to see it here.
           </div>
         ) : (
-          <div className="card-soft divide-y">
-            {activeDeals.map(({ deal, last_activity_date, days_since_activity }) => (
-              <div key={deal.id} className="flex items-center gap-4 px-5 py-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className="font-semibold text-teal">{deal.name}</span>
-                    <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-teal-light text-teal">
-                      {deal.stage}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {last_activity_date == null ? "No activity yet" : `${days_since_activity}d since activity`}
-                    </span>
-                  </div>
-                  {deal.next_action && (
-                    <div className="text-sm text-ink/80 mt-0.5 truncate">
-                      Next: {deal.next_action}
-                    </div>
-                  )}
-                </div>
+          <div className="divide-y border-y">
+            {activeDeals.map(({ deal }) => (
+              <div key={deal.id} className="flex items-center gap-3 py-2.5 px-1">
+                <span className="font-semibold text-teal flex-1 min-w-0 truncate">{deal.name}</span>
+                {deal.deal_type && (
+                  <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-muted text-ink/70 whitespace-nowrap">
+                    {deal.deal_type.replace(/-/g, " ")}
+                  </span>
+                )}
+                <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-teal-light text-teal whitespace-nowrap">
+                  {deal.stage}
+                </span>
                 <Link
                   to={`/deals?deal=${deal.id}`}
                   className="text-sm text-teal hover:underline whitespace-nowrap"
-                >
-                  View
-                </Link>
+                >View</Link>
               </div>
             ))}
           </div>
