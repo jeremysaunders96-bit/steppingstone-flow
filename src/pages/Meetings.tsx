@@ -12,6 +12,11 @@ import { ContactPicker } from "@/components/ContactPicker";
 import { DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ActionItemList } from "@/components/ActionItemList";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Row = Interaction & { contact: Contact | null };
 
@@ -56,6 +61,17 @@ export default function Meetings() {
   const [assigningRow, setAssigningRow] = useState<Row | null>(null);
   const [assignContact, setAssignContact] = useState<Contact | null>(null);
   const [assigning, setAssigning] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const confirmDelete = async () => {
+    if (!deletingId) return;
+    await supabase.from("action_items").delete().eq("interaction_id", deletingId);
+    const { error } = await supabase.from("interactions").delete().eq("id", deletingId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Note deleted");
+    setDeletingId(null);
+    load();
+  };
 
   const doAssign = async () => {
     if (!assigningRow || !assignContact) { toast.error("Pick a contact"); return; }
@@ -184,6 +200,10 @@ export default function Meetings() {
                   className="text-xs text-teal hover:underline"
                   onClick={(e) => { e.stopPropagation(); setEditingRow(r); }}
                 >Edit</button>
+                <button
+                  className="text-xs text-red-600 hover:underline ml-2"
+                  onClick={(e) => { e.stopPropagation(); setDeletingId(r.id); }}
+                >Delete</button>
               </div>
             );
           })}
