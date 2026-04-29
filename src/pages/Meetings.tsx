@@ -265,6 +265,28 @@ export default function Meetings() {
         } : null}
         onSaved={() => { setEditingRow(null); load(); }}
       />
+
+      {/* Assign contact modal */}
+      <Dialog open={!!assigningRow} onOpenChange={(v) => { if (!v) { setAssigningRow(null); setAssignContact(null); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-teal">Assign to contact</DialogTitle>
+          </DialogHeader>
+          {assigningRow && (
+            <div className="space-y-3">
+              <div className="text-sm bg-muted/40 rounded-md p-3">
+                <div className="text-xs text-muted-foreground">{fmtRowDate(assigningRow.date)} · {assigningRow.type}</div>
+                {assigningRow.summary && <div className="italic text-xs mt-1">{assigningRow.summary}</div>}
+              </div>
+              <ContactPicker label="Assign to" value={assignContact} onChange={setAssignContact} />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setAssigningRow(null); setAssignContact(null); }}>Cancel</Button>
+            <Button className="bg-teal hover:bg-teal/90 text-white" disabled={assigning} onClick={doAssign}>Assign</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
