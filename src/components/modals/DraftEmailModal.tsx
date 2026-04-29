@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { VoiceTextarea } from "@/components/VoiceTextarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -69,9 +70,9 @@ export function DraftEmailModal({
         <div className="space-y-3">
           <div>
             <Label>What does this email need to do?</Label>
-            <Textarea
+            <VoiceTextarea
               placeholder="What does this email need to do? Describe in 1-2 sentences."
-              value={brief} onChange={e=>setBrief(e.target.value)} rows={3}
+              value={brief} onValueChange={setBrief} rows={3}
             />
           </div>
           <div>

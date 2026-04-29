@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { VoiceTextarea } from "@/components/VoiceTextarea";
 import { Loader2, Copy, RefreshCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ContactPicker } from "@/components/ContactPicker";
@@ -68,7 +68,10 @@ export function DraftIntroEmailModal({
         <div className="space-y-3">
           <ContactPicker label="First person" value={first} onChange={setFirst} excludeId={second?.id} />
           <ContactPicker label="Second person" value={second} onChange={setSecond} excludeId={first?.id} />
-          <div><Label>Reason for this introduction</Label><Input value={reason} onChange={e=>setReason(e.target.value)} /></div>
+          <div>
+            <Label>Reason for this introduction</Label>
+            <VoiceTextarea value={reason} onValueChange={setReason} rows={3} placeholder="Why are you connecting these two people?" />
+          </div>
           {draft && (
             <div className="space-y-2">
               <Label>Draft</Label>
