@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Mic, Handshake, Phone, Mail, FileText, MessageSquare, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
-import { supabase, type Interaction, type Contact, type InteractionType } from "@/lib/supabase";
+import { supabase, type Interaction, type Contact } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
