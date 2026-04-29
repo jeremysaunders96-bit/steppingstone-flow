@@ -12,6 +12,11 @@ import { ContactPicker } from "@/components/ContactPicker";
 import { DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ActionItemList } from "@/components/ActionItemList";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Row = Interaction & { contact: Contact | null };
 
@@ -56,6 +61,17 @@ export default function Meetings() {
   const [assigningRow, setAssigningRow] = useState<Row | null>(null);
   const [assignContact, setAssignContact] = useState<Contact | null>(null);
   const [assigning, setAssigning] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const confirmDelete = async () => {
+    if (!deletingId) return;
+    await supabase.from("action_items").delete().eq("interaction_id", deletingId);
+    const { error } = await supabase.from("interactions").delete().eq("id", deletingId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Note deleted");
+    setDeletingId(null);
+    load();
+  };
 
   const doAssign = async () => {
     if (!assigningRow || !assignContact) { toast.error("Pick a contact"); return; }
@@ -180,10 +196,16 @@ export default function Meetings() {
                     <div className="text-xs italic text-muted-foreground truncate mt-0.5">{r.summary}</div>
                   )}
                 </div>
-                <button
-                  className="text-xs text-teal hover:underline"
-                  onClick={(e) => { e.stopPropagation(); setEditingRow(r); }}
-                >Edit</button>
+                <div className="flex items-center gap-3 pt-0.5">
+                  <button
+                    className="text-xs text-teal hover:underline"
+                    onClick={(e) => { e.stopPropagation(); setEditingRow(r); }}
+                  >Edit</button>
+                  <button
+                    className="text-xs text-red-600 hover:underline"
+                    onClick={(e) => { e.stopPropagation(); setDeletingId(r.id); }}
+                  >Delete</button>
+                </div>
               </div>
             );
           })}
@@ -224,6 +246,14 @@ export default function Meetings() {
                 {openRow.full_note && (
                   <div className="whitespace-pre-wrap text-ink/90 leading-relaxed pt-2 border-t">{openRow.full_note}</div>
                 )}
+                <div className="pt-2 border-t">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-ink/70 mb-2">Action items</div>
+                  <ActionItemList
+                    interactionId={openRow.id}
+                    needsFollowup={openRow.needs_followup}
+                    onAllCompleteChanged={() => { setOpenRow(null); load(); }}
+                  />
+                </div>
                 {openRow.action_items && openRow.action_items.length > 0 && (
                   <div className="pt-2 border-t">
                     <div className="text-xs font-semibold uppercase tracking-wide text-ink/70 mb-2">Action items</div>
@@ -290,6 +320,19 @@ export default function Meetings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deletingId} onOpenChange={(v)=>!v && setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this note?</AlertDialogTitle>
+            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={confirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

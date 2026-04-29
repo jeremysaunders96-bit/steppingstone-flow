@@ -5,6 +5,7 @@ import { supabase, type Contact, type Interaction, type Deal } from "@/lib/supab
 import { formatShortDate, daysSince } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { DraftEmailModal } from "@/components/modals/DraftEmailModal";
+import { ActionItemList } from "@/components/ActionItemList";
 
 type OwesReplyRow = { interaction: Interaction; contact: Contact };
 type WorthCallRow = { contact: Contact };
@@ -137,23 +138,32 @@ export default function Home() {
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-ink/70 mb-2">Owes a Reply</h3>
                 <div className="card-soft divide-y">
                   {owesReply.map(({ interaction, contact }) => (
-                    <div key={interaction.id} className="flex items-center gap-4 px-5 py-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-2 flex-wrap">
-                          <Link to={`/contacts/${contact.id}`} className="font-semibold text-ink hover:text-teal">{contact.full_name}</Link>
-                          {contact.company && <span className="text-sm text-muted-foreground">{contact.company}</span>}
+                    <div key={interaction.id} className="px-5 py-4">
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <Link to={`/contacts/${contact.id}`} className="font-semibold text-ink hover:text-teal">{contact.full_name}</Link>
+                            {contact.company && <span className="text-sm text-muted-foreground">{contact.company}</span>}
+                          </div>
+                          <div className="text-xs text-orange mt-0.5">
+                            Follow-up due {formatShortDate(interaction.followup_by)}
+                          </div>
+                          {interaction.summary && (
+                            <div className="text-sm italic text-ink/80 mt-1 truncate">{interaction.summary}</div>
+                          )}
                         </div>
-                        <div className="text-xs text-orange mt-0.5">
-                          Follow-up due {formatShortDate(interaction.followup_by)}
-                        </div>
-                        {interaction.summary && (
-                          <div className="text-sm italic text-ink/80 mt-1 truncate">{interaction.summary}</div>
-                        )}
+                        <Button
+                          className="bg-teal hover:bg-teal/90 text-white"
+                          onClick={() => setDraftFor(contact)}
+                        >Draft Email</Button>
                       </div>
-                      <Button
-                        className="bg-teal hover:bg-teal/90 text-white"
-                        onClick={() => setDraftFor(contact)}
-                      >Draft Email</Button>
+                      <div className="mt-3">
+                        <ActionItemList
+                          interactionId={interaction.id}
+                          needsFollowup={interaction.needs_followup}
+                          onAllCompleteChanged={load}
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>

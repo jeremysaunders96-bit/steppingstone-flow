@@ -95,7 +95,7 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
               </div>
             </div>
           ) : (
-            <ContactPicker label="To" value={contact} onChange={setContact} />
+            <ContactPicker label="To" value={contact} onChange={setContact} allowCreate />
           )}
           <div>
             <Label>Subject</Label>

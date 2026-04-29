@@ -375,8 +375,26 @@ export function CaptureMeetingModal({
           needs_followup: needsFollowup,
           followup_by: fbISO,
         }));
-        const { error } = await supabase.from("interactions").insert(rows);
+        const { data: insertedRows, error } = await supabase
+          .from("interactions")
+          .insert(rows)
+          .select("id, contact_id");
         if (error) throw error;
+        // Create action_items records (one per Claude action item, per interaction)
+        const aiTexts = extraction?.action_items || [];
+        if (insertedRows && aiTexts.length > 0) {
+          const dueISO = plusDaysISO(4);
+          const aiRows = (insertedRows as { id: string; contact_id: string }[]).flatMap((row) =>
+            aiTexts.map((text) => ({
+              interaction_id: row.id,
+              contact_id: row.contact_id,
+              text,
+              due_date: dueISO,
+              completed: false,
+            })),
+          );
+          await supabase.from("action_items").insert(aiRows);
+        }
         await Promise.all(
           selected.map((c) =>
             supabase

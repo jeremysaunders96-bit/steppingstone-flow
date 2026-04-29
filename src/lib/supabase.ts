@@ -52,6 +52,17 @@ export interface Interaction {
   created_at: string;
 }
 
+export interface ActionItem {
+  id: string;
+  interaction_id: string;
+  contact_id: string | null;
+  text: string;
+  due_date: string | null;
+  completed: boolean;
+  completed_at: string | null;
+  created_at: string;
+}
+
 export type DealStage =
   | "active" | "progressing" | "stalled" | "done"
   | "introduced" | "led-somewhere" | "gone-cold";
