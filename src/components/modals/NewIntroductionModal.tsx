@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { ContactPicker } from "@/components/ContactPicker";
 import { supabase, type Contact } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -17,6 +18,7 @@ export function NewIntroductionModal({
   const [second, setSecond] = useState<Contact | null>(null);
   const [reason, setReason] = useState("");
   const [status, setStatus] = useState<Status>("made");
+  const [createDeal, setCreateDeal] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -26,10 +28,41 @@ export function NewIntroductionModal({
       first_contact_id: first.id, second_contact_id: second.id,
       reason: reason.trim() || null, status,
     });
+    if (error) { setSaving(false); toast.error(error.message); return; }
+
+    if (createDeal) {
+      const dealName = `Introduction: ${first.full_name} / ${second.full_name}`;
+      const { data: deal, error: dealErr } = await supabase
+        .from("deals")
+        .insert({
+          name: dealName,
+          deal_type: "one-off-introduction",
+          description: reason.trim() || null,
+          stage: "active",
+        })
+        .select("id")
+        .single();
+      if (dealErr || !deal) {
+        setSaving(false);
+        toast.error(dealErr?.message || "Failed to create deal");
+        return;
+      }
+      const { error: linkErr } = await supabase.from("deal_contacts").insert([
+        { deal_id: deal.id, contact_id: first.id },
+        { deal_id: deal.id, contact_id: second.id },
+      ]);
+      if (linkErr) {
+        setSaving(false);
+        toast.error(linkErr.message);
+        return;
+      }
+      toast.success("Introduction & deal created");
+    } else {
+      toast.success("Introduction logged");
+    }
+
     setSaving(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Introduction logged");
-    setFirst(lockedFirst || null); setSecond(null); setReason(""); setStatus("made");
+    setFirst(lockedFirst || null); setSecond(null); setReason(""); setStatus("made"); setCreateDeal(true);
     onOpenChange(false); onSaved?.();
   };
 
@@ -51,6 +84,10 @@ export function NewIntroductionModal({
                 <SelectItem value="gone-cold">gone-cold</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex items-center justify-between pt-2 border-t">
+            <Label htmlFor="create-deal-toggle" className="cursor-pointer">Create a deal for this introduction?</Label>
+            <Switch id="create-deal-toggle" checked={createDeal} onCheckedChange={setCreateDeal} />
           </div>
         </div>
         <DialogFooter>
