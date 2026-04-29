@@ -1,10 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { supabase, type Contact, type Interaction, type Deal } from "@/lib/supabase";
 import { formatShortDate, daysSince } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { AddMeetingModal } from "@/components/modals/AddMeetingModal";
 import { DraftEmailModal } from "@/components/modals/DraftEmailModal";
 
 type OwesReplyRow = { interaction: Interaction; contact: Contact };
