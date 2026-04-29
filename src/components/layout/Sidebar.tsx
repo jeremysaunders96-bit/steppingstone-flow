@@ -5,19 +5,18 @@ import { useActiveDealsCount } from "@/hooks/useActiveDealsCount";
 import { useUnmatchedCount } from "@/hooks/useUnmatchedCount";
 import { Button } from "@/components/ui/button";
 
-const items = [
-  { to: "/", label: "Home", icon: Home, end: true, key: "home" as const },
-  { to: "/contacts", label: "Contacts", icon: Users, end: false, key: "contacts" as const },
-  { to: "/meetings", label: "Meetings", icon: Calendar, end: false, key: "meetings" as const },
-  { to: "/deals", label: "Deals", icon: Briefcase, end: false, key: "deals" as const },
-  { to: "/unmatched", label: "Unmatched", icon: AlertCircle, end: false, key: "unmatched" as const },
-  { to: "/linkedin", label: "LinkedIn Queue", icon: Linkedin, end: false, key: "linkedin" as const },
-];
-
 export function Sidebar({ onComposeClick }: { onComposeClick?: () => void }) {
   const attention = useAttentionCount();
   const activeDeals = useActiveDealsCount();
   const unmatched = useUnmatchedCount();
+  const items = [
+    { to: "/", label: "Home", icon: Home, end: true, key: "home" as const },
+    { to: "/contacts", label: "Contacts", icon: Users, end: false, key: "contacts" as const },
+    { to: "/meetings", label: "Meetings", icon: Calendar, end: false, key: "meetings" as const },
+    { to: "/deals", label: "Deals", icon: Briefcase, end: false, key: "deals" as const },
+    ...(unmatched > 0 ? [{ to: "/unmatched", label: "Unmatched", icon: AlertCircle, end: false, key: "unmatched" as const }] : []),
+    { to: "/linkedin", label: "LinkedIn Queue", icon: Linkedin, end: false, key: "linkedin" as const },
+  ];
   return (
     <aside className="hidden md:flex md:flex-col w-[240px] shrink-0 bg-teal text-white min-h-screen">
       <div className="px-6 pt-8 pb-10">
