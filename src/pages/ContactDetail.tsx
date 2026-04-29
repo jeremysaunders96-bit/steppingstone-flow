@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ChevronLeft, ChevronDown, ChevronRight, Link2 } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronRight, Link2, Mic } from "lucide-react";
 import { supabase, type Contact, type Interaction, type IntroductionWithOther, type Deal } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -27,6 +27,7 @@ export default function ContactDetail() {
   const [draft, setDraft] = useState(false);
   const [intro, setIntro] = useState(false);
   const [note, setNote] = useState(false);
+  const [editingInteraction, setEditingInteraction] = useState<Interaction | null>(null);
   const [linkDeal, setLinkDeal] = useState(false);
   const [linkedDeals, setLinkedDeals] = useState<LinkedDeal[]>([]);
   const [openDeal, setOpenDeal] = useState<Deal | null>(null);
@@ -165,17 +166,27 @@ export default function ContactDetail() {
               <div className="card-soft divide-y">
                 {hist.map(i => {
                   const open = !!expanded[i.id];
+                  const isVoice = i.type === "voice note";
                   return (
                     <div key={i.id} className="px-5 py-4">
                       <button onClick={()=>setExpanded(s => ({...s, [i.id]: !open}))} className="w-full text-left flex items-start gap-3">
                         <span className="mt-1">{open ? <ChevronDown className="h-4 w-4 text-muted-foreground"/> : <ChevronRight className="h-4 w-4 text-muted-foreground"/>}</span>
+                        {isVoice && <Mic className="h-4 w-4 mt-1 text-teal shrink-0" />}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline gap-3 flex-wrap">
-                            <span className="text-xs uppercase tracking-wide text-muted-foreground">{i.type}</span>
                             <span className="text-xs text-muted-foreground">{formatLongDate(i.date)}</span>
+                            <span className={`text-xs ${isVoice ? "text-teal" : "uppercase tracking-wide text-muted-foreground"}`}>
+                              {isVoice ? "Voice note" : i.type}
+                            </span>
                           </div>
                           <div className="font-semibold text-ink mt-0.5">{i.summary}</div>
                         </div>
+                        <button
+                          onClick={(e)=>{ e.stopPropagation(); setEditingInteraction(i); setNote(true); }}
+                          className="text-xs text-teal hover:underline shrink-0 mt-1"
+                        >
+                          Edit
+                        </button>
                       </button>
                       {open && (
                         <div className="pl-7 mt-3 space-y-3">
@@ -316,7 +327,13 @@ export default function ContactDetail() {
 
       <DraftEmailModal open={draft} onOpenChange={setDraft} contactName={c.full_name} contact={c} />
       <DraftIntroEmailModal open={intro} onOpenChange={setIntro} firstContact={c} />
-      <AddNoteModal open={note} onOpenChange={setNote} contactId={c.id} onSaved={load} />
+      <AddNoteModal
+        open={note}
+        onOpenChange={(v)=>{ setNote(v); if (!v) setEditingInteraction(null); }}
+        contactId={c.id}
+        editing={editingInteraction}
+        onSaved={load}
+      />
       <LinkToDealModal open={linkDeal} onOpenChange={setLinkDeal} contactId={c.id} onSaved={load} />
       <DealModal deal={openDeal} onOpenChange={(v)=>!v && setOpenDeal(null)} />
     </div>
