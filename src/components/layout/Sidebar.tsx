@@ -1,11 +1,17 @@
 import { NavLink } from "react-router-dom";
-import { Home, Users, Linkedin, Mail, Briefcase, Calendar, AlertCircle } from "lucide-react";
+import { Home, Users, Linkedin, Mail, Briefcase, Calendar, AlertCircle, Mic } from "lucide-react";
 import { useAttentionCount } from "@/hooks/useAttentionCount";
 import { useActiveDealsCount } from "@/hooks/useActiveDealsCount";
 import { useUnmatchedCount } from "@/hooks/useUnmatchedCount";
 import { Button } from "@/components/ui/button";
 
-export function Sidebar({ onComposeClick }: { onComposeClick?: () => void }) {
+export function Sidebar({
+  onComposeClick,
+  onCaptureMeetingClick,
+}: {
+  onComposeClick?: () => void;
+  onCaptureMeetingClick?: () => void;
+}) {
   const attention = useAttentionCount();
   const activeDeals = useActiveDealsCount();
   const unmatched = useUnmatchedCount();
@@ -23,6 +29,17 @@ export function Sidebar({ onComposeClick }: { onComposeClick?: () => void }) {
         <div className="font-display text-2xl tracking-tight">Steppingstone</div>
         <div className="font-sans text-xs opacity-70 mt-1">Will Meadon</div>
       </div>
+      {onCaptureMeetingClick && (
+        <div className="px-3 pb-3">
+          <Button
+            onClick={onCaptureMeetingClick}
+            style={{ backgroundColor: "#b3c2c9", color: "#2b5a6a" }}
+            className="w-full font-medium hover:opacity-90 hover:bg-[#b3c2c9]"
+          >
+            <Mic className="h-4 w-4 mr-2" /> Capture Meeting
+          </Button>
+        </div>
+      )}
       <nav className="flex-1 px-3">
         {items.map((it, i) => (
           <div key={it.to}>
