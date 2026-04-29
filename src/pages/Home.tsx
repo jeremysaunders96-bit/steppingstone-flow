@@ -9,11 +9,6 @@ import { DraftEmailModal } from "@/components/modals/DraftEmailModal";
 
 type OwesReplyRow = { interaction: Interaction; contact: Contact };
 type WorthCallRow = { contact: Contact };
-type DealPulseRow = {
-  deal: Deal;
-  last_activity_date: string | null;
-  days_since_activity: number | null;
-};
 type UpcomingRow = { interaction: Interaction; contact: Contact };
 type ActiveDealRow = {
   deal: Deal;
@@ -30,7 +25,6 @@ type TodayMeeting = {
 export default function Home() {
   const [owesReply, setOwesReply] = useState<OwesReplyRow[]>([]);
   const [worthCall, setWorthCall] = useState<WorthCallRow[]>([]);
-  const [dealPulse, setDealPulse] = useState<DealPulseRow[]>([]);
   const [upcoming, setUpcoming] = useState<UpcomingRow[]>([]);
   const [meetings, setMeetings] = useState<TodayMeeting[]>([]);
   const [activeDeals, setActiveDeals] = useState<ActiveDealRow[]>([]);
@@ -101,11 +95,6 @@ export default function Home() {
       last_activity_date: r.last_activity_date,
       days_since_activity: r.days_since_activity,
     }));
-    const pulseRows: DealPulseRow[] = allDealRows
-      .filter((r: any) => r.stage !== "done")
-      .filter((r: any) => r.last_activity_date == null || (r.days_since_activity ?? 0) > 7);
-    setDealPulse(pulseRows);
-
     // 4. Follow-ups Coming Up — between tomorrow and +7 days
     const { data: upcomingData } = await supabase
       .from("interactions")
