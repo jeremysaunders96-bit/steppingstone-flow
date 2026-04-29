@@ -196,14 +196,16 @@ export default function Meetings() {
                     <div className="text-xs italic text-muted-foreground truncate mt-0.5">{r.summary}</div>
                   )}
                 </div>
-                <button
-                  className="text-xs text-teal hover:underline"
-                  onClick={(e) => { e.stopPropagation(); setEditingRow(r); }}
-                >Edit</button>
-                <button
-                  className="text-xs text-red-600 hover:underline ml-2"
-                  onClick={(e) => { e.stopPropagation(); setDeletingId(r.id); }}
-                >Delete</button>
+                <div className="flex items-center gap-3 pt-0.5">
+                  <button
+                    className="text-xs text-teal hover:underline"
+                    onClick={(e) => { e.stopPropagation(); setEditingRow(r); }}
+                  >Edit</button>
+                  <button
+                    className="text-xs text-red-600 hover:underline"
+                    onClick={(e) => { e.stopPropagation(); setDeletingId(r.id); }}
+                  >Delete</button>
+                </div>
               </div>
             );
           })}
