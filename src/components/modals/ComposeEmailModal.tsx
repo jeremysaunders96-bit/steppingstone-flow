@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { VoiceTextarea } from "@/components/VoiceTextarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Copy, RefreshCcw } from "lucide-react";
@@ -102,10 +103,10 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
           </div>
           <div>
             <Label>What does this email need to do?</Label>
-            <Textarea
+            <VoiceTextarea
               placeholder="2-3 sentences max. What does this email need to do?"
               value={brief}
-              onChange={e => setBrief(e.target.value)}
+              onValueChange={setBrief}
               rows={3}
             />
           </div>

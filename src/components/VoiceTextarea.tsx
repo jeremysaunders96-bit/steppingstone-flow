@@ -89,7 +89,7 @@ export const VoiceTextarea = forwardRef<HTMLTextAreaElement, Props>(function Voi
         ref={ref}
         value={value}
         onChange={e => onValueChange(e.target.value)}
-        className={cn(supported ? "pr-10" : undefined, className)}
+        className={cn(supported ? "pr-10 pb-12" : undefined, className)}
         {...rest}
       />
       {supported && (
@@ -98,11 +98,12 @@ export const VoiceTextarea = forwardRef<HTMLTextAreaElement, Props>(function Voi
           onClick={start}
           aria-label={listening ? "Stop voice input" : "Start voice input"}
           aria-pressed={listening}
+          style={listening ? { color: "#d97732", backgroundColor: "rgba(217,119,50,0.12)" } : undefined}
           className={cn(
-            "absolute bottom-2 right-2 inline-flex items-center justify-center h-7 w-7 rounded-full transition-colors",
+            "absolute bottom-2 right-2 z-10 inline-flex items-center justify-center h-8 w-8 rounded-full border bg-background shadow-sm transition-colors",
             listening
-              ? "bg-orange/15 text-orange animate-pulse"
-              : "text-muted-foreground hover:text-ink hover:bg-muted"
+              ? "border-[#d97732] animate-pulse"
+              : "border-border text-muted-foreground hover:text-ink hover:bg-muted"
           )}
         >
           <Mic className="h-4 w-4" />
