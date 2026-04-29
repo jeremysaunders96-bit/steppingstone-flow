@@ -127,6 +127,25 @@ create table if not exists public.linkedin_posts (
   created_at timestamptz not null default now()
 );
 
+-- UNMATCHED MEMOS --------------------------------------------------------
+-- Voice notes Claude couldn't match to a contact, surfaced on the Unmatched screen.
+create table if not exists public.unmatched_memos (
+  id uuid primary key default gen_random_uuid(),
+  extracted_contact_name text,
+  extracted_company text,
+  extracted_summary text,
+  extracted_full_note text,
+  extracted_action_items jsonb default '[]'::jsonb,
+  extracted_date date default current_date,
+  extracted_type text default 'voice note',
+  status text not null default 'unmatched' check (status in ('unmatched','assigned','dismissed')),
+  assigned_contact_id uuid references public.contacts(id) on delete set null,
+  assigned_interaction_id uuid references public.interactions(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create index if not exists unmatched_memos_status_idx
+  on public.unmatched_memos(status, created_at desc);
+
 -- RLS: single-user private link. Open read+write to anon.
 alter table public.contacts enable row level security;
 alter table public.interactions enable row level security;
@@ -134,11 +153,12 @@ alter table public.deals enable row level security;
 alter table public.deal_contacts enable row level security;
 alter table public.introductions enable row level security;
 alter table public.linkedin_posts enable row level security;
+alter table public.unmatched_memos enable row level security;
 
 do $$
 declare t text;
 begin
-  for t in select unnest(array['contacts','interactions','deals','deal_contacts','introductions','linkedin_posts']) loop
+  for t in select unnest(array['contacts','interactions','deals','deal_contacts','introductions','linkedin_posts','unmatched_memos']) loop
     execute format('drop policy if exists "anon all" on public.%I', t);
     execute format('create policy "anon all" on public.%I for all to anon using (true) with check (true)', t);
   end loop;

@@ -118,3 +118,20 @@ export interface LinkedInPost {
   comments: number | null;
   created_at: string;
 }
+
+export type UnmatchedMemoStatus = "unmatched" | "assigned" | "dismissed";
+
+export interface UnmatchedMemo {
+  id: string;
+  extracted_contact_name: string | null;
+  extracted_company: string | null;
+  extracted_summary: string | null;
+  extracted_full_note: string | null;
+  extracted_action_items: { text: string; done: boolean }[] | null;
+  extracted_date: string | null;
+  extracted_type: string | null;
+  status: UnmatchedMemoStatus;
+  assigned_contact_id: string | null;
+  assigned_interaction_id: string | null;
+  created_at: string;
+}
