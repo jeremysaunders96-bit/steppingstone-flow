@@ -15,21 +15,13 @@ type ActiveDealRow = {
   days_since_activity: number | null;
 };
 
-type TodayMeeting = {
-  interaction: Interaction;
-  contact: Contact | null;
-  recentNote: Interaction | null;
-};
-
 export default function Home() {
   const [owesReply, setOwesReply] = useState<OwesReplyRow[]>([]);
   const [worthCall, setWorthCall] = useState<WorthCallRow[]>([]);
   const [upcoming, setUpcoming] = useState<UpcomingRow[]>([]);
-  const [meetings, setMeetings] = useState<TodayMeeting[]>([]);
   const [activeDeals, setActiveDeals] = useState<ActiveDealRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [meetingOpen, setMeetingOpen] = useState(false);
   const [draftFor, setDraftFor] = useState<Contact | null>(null);
 
   const load = useCallback(async () => {
@@ -107,29 +99,6 @@ export default function Home() {
       .filter((r: any) => r.contact)
       .map((r: any) => ({ interaction: r as Interaction, contact: r.contact as Contact }));
     setUpcoming(upcomingRows);
-
-    // Today's meetings
-    const { data: todays } = await supabase
-      .from("interactions").select("*, contact:contacts(*)")
-      .eq("type", "meeting").eq("date", todayStr)
-      .order("created_at");
-    const todaysList: TodayMeeting[] = (todays || []).map((i: any) => ({
-      interaction: i, contact: i.contact, recentNote: null,
-    }));
-    if (todaysList.length) {
-      const ids = todaysList.map(m => m.contact?.id).filter(Boolean) as string[];
-      const { data: notes } = await supabase
-        .from("interactions").select("*").in("contact_id", ids).order("date", { ascending: false });
-      const seen = new Set<string>();
-      (notes || []).forEach((n: any) => {
-        if (seen.has(n.contact_id)) return;
-        if (n.type === "meeting" && n.date === todayStr) return;
-        seen.add(n.contact_id);
-        const row = todaysList.find(m => m.contact?.id === n.contact_id);
-        if (row) row.recentNote = n;
-      });
-    }
-    setMeetings(todaysList);
 
     // Active deals (for the simpler summary row list)
     const active = allDealRows.filter(r => r.deal.stage !== "done");
