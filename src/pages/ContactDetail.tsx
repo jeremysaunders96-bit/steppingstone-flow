@@ -15,6 +15,11 @@ import { DealModal } from "@/components/modals/DealModal";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { ActionItemList } from "@/components/ActionItemList";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type LinkedDeal = Deal & { role_in_deal: string | null };
 
@@ -36,6 +41,7 @@ export default function ContactDetail() {
   const [pickedDealId, setPickedDealId] = useState<string>("");
   const [pickedRole, setPickedRole] = useState("");
   const [savingLink, setSavingLink] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -101,6 +107,16 @@ export default function ContactDetail() {
     const next = i.action_items.map((a, j) => j === idx ? { ...a, done: !a.done } : a);
     await supabase.from("interactions").update({ action_items: next }).eq("id", interactionId);
     setHist(hist.map(h => h.id === interactionId ? { ...h, action_items: next } : h));
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingId) return;
+    await supabase.from("action_items").delete().eq("interaction_id", deletingId);
+    const { error } = await supabase.from("interactions").delete().eq("id", deletingId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Note deleted");
+    setDeletingId(null);
+    load();
   };
 
   if (!c) return <div className="text-muted-foreground">Loading…</div>;
@@ -187,10 +203,21 @@ export default function ContactDetail() {
                         >
                           Edit
                         </button>
+                        <button
+                          onClick={(e)=>{ e.stopPropagation(); setDeletingId(i.id); }}
+                          className="text-xs text-red-600 hover:underline shrink-0 mt-1 ml-2"
+                        >
+                          Delete
+                        </button>
                       </button>
                       {open && (
                         <div className="pl-7 mt-3 space-y-3">
                           {i.full_note && <p className="text-sm text-ink/85 whitespace-pre-wrap">{i.full_note}</p>}
+                          <ActionItemList
+                            interactionId={i.id}
+                            needsFollowup={i.needs_followup}
+                            onAllCompleteChanged={load}
+                          />
                           {i.action_items && i.action_items.length > 0 && (
                             <ul className="space-y-1">
                               {i.action_items.map((a, idx) => (
@@ -336,6 +363,18 @@ export default function ContactDetail() {
       />
       <LinkToDealModal open={linkDeal} onOpenChange={setLinkDeal} contactId={c.id} onSaved={load} />
       <DealModal deal={openDeal} onOpenChange={(v)=>!v && setOpenDeal(null)} />
+      <AlertDialog open={!!deletingId} onOpenChange={(v)=>!v && setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this note?</AlertDialogTitle>
+            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={confirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
