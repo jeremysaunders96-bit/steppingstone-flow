@@ -422,9 +422,7 @@ function DealDetail({
                   {editing ? (
                     <Textarea rows={2} value={draft.commission_structure ?? ""} onChange={e=>setDraft({...draft, commission_structure: e.target.value})} />
                   ) : (
-                    <div className="bg-teal-light/40 text-ink/80 rounded-md px-3 py-2 text-sm whitespace-pre-wrap min-h-[2.5rem]">
-                      {deal.commission_structure || <span className="italic text-muted-foreground">Not set</span>}
-                    </div>
+                    <div className="whitespace-pre-wrap">{deal.commission_structure || "—"}</div>
                   )}
                 </Field>
                 <Field label="Date made">
@@ -474,9 +472,7 @@ function DealDetail({
                   {editing ? (
                     <Textarea rows={2} value={draft.commission_structure ?? ""} onChange={e=>setDraft({...draft, commission_structure: e.target.value})} />
                   ) : (
-                    <div className="bg-teal-light/40 text-ink/80 rounded-md px-3 py-2 text-sm whitespace-pre-wrap min-h-[2.5rem]">
-                      {deal.commission_structure || <span className="italic text-muted-foreground">Not set</span>}
-                    </div>
+                    <div className="whitespace-pre-wrap">{deal.commission_structure || "—"}</div>
                   )}
                 </Field>
                 <Field label="Next action">
