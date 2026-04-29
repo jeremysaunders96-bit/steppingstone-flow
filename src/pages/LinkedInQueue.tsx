@@ -48,7 +48,7 @@ export default function LinkedInQueue() {
                   <Badge>{p.post_type}</Badge>
                   <Badge subtle>{p.page}</Badge>
                 </div>
-                <p className="text-ink whitespace-pre-wrap leading-relaxed">{p.body}</p>
+                <p className="text-ink whitespace-pre-wrap leading-relaxed">{(p as any).body_text ?? p.body}</p>
                 {p.personal_commentary && (
                   <div className="mt-4 pl-4 border-l-2 border-orange italic text-ink/80">
                     <div className="text-[11px] uppercase tracking-wide text-orange not-italic mb-1">Will's personal commentary</div>
@@ -89,7 +89,7 @@ export default function LinkedInQueue() {
                   <Badge>{p.post_type}</Badge>
                   <Badge subtle>{p.page}</Badge>
                 </div>
-                <p className="text-sm text-ink/85 line-clamp-3 whitespace-pre-wrap">{p.body}</p>
+                <p className="text-sm text-ink/85 line-clamp-3 whitespace-pre-wrap">{(p as any).body_text ?? p.body}</p>
                 <div className="flex flex-wrap gap-2 mt-3">
                   {p.impressions != null && <Stat label="Impressions" value={p.impressions} />}
                   {p.reactions != null && <Stat label="Reactions" value={p.reactions} />}

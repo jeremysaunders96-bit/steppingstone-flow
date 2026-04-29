@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Mic, Handshake, Phone, Mail, FileText, MessageSquare, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
-import { supabase, type Interaction, type Contact, type InteractionType } from "@/lib/supabase";
+import { supabase, type Interaction, type Contact } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -15,18 +15,18 @@ import { cn } from "@/lib/utils";
 
 type Row = Interaction & { contact: Contact | null };
 
-type FilterKey = "all" | "voice note" | "meeting" | "call" | "email";
+type FilterKey = "all" | "voice note";
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "All" },
   { key: "voice note", label: "Voice Notes" },
-  { key: "meeting", label: "Meetings" },
-  { key: "call", label: "Calls" },
-  { key: "email", label: "Emails" },
 ];
 
-function typeIcon(type: InteractionType) {
-  switch (type) {
-    case "voice note": return Mic;
+function typeIcon(type: string) {
+  const t = (type || "").toLowerCase().replace(/-/g, " ");
+  switch (t) {
+    case "voice note":
+    case "voicenote":
+      return Mic;
     case "meeting": return Handshake;
     case "call": return Phone;
     case "email": return Mail;
@@ -105,7 +105,10 @@ export default function Meetings() {
 
   const filtered = useMemo(() => {
     if (filter === "all") return rows;
-    return rows.filter(r => r.type === filter);
+    return rows.filter(r => {
+      const t = (r.type || "").toLowerCase().replace(/-/g, " ");
+      return t === filter;
+    });
   }, [rows, filter]);
 
   return (
