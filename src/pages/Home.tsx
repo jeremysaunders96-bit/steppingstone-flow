@@ -6,6 +6,7 @@ import { formatShortDate, daysSince } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { DraftEmailModal } from "@/components/modals/DraftEmailModal";
 import { ActionItemList } from "@/components/ActionItemList";
+import { HomeActionItems } from "@/components/HomeActionItems";
 
 type OwesReplyRow = { interaction: Interaction; contact: Contact };
 type WorthCallRow = { contact: Contact };
@@ -239,6 +240,8 @@ export default function Home() {
           </Button>
         </div>
       </section>
+
+      <HomeActionItems />
 
       {/* Active Deals */}
       <section>
