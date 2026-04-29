@@ -146,6 +146,25 @@ create table if not exists public.unmatched_memos (
 create index if not exists unmatched_memos_status_idx
   on public.unmatched_memos(status, created_at desc);
 
+-- ACTION ITEMS -----------------------------------------------------------
+-- Per-interaction follow-up tasks extracted from Capture Meeting.
+create table if not exists public.action_items (
+  id uuid primary key default gen_random_uuid(),
+  interaction_id uuid not null references public.interactions(id) on delete cascade,
+  contact_id uuid references public.contacts(id) on delete set null,
+  text text not null,
+  due_date date,
+  completed boolean not null default false,
+  completed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists action_items_interaction_idx on public.action_items(interaction_id);
+create index if not exists action_items_contact_idx on public.action_items(contact_id);
+
+alter table public.action_items enable row level security;
+drop policy if exists "anon all" on public.action_items;
+create policy "anon all" on public.action_items for all to anon using (true) with check (true);
+
 -- RLS: single-user private link. Open read+write to anon.
 alter table public.contacts enable row level security;
 alter table public.interactions enable row level security;
