@@ -8,6 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { AddNoteModal } from "@/components/modals/AddNoteModal";
+import { ContactPicker } from "@/components/ContactPicker";
+import { DialogFooter } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 type Row = Interaction & { contact: Contact | null };
@@ -50,6 +53,27 @@ export default function Meetings() {
   const [openRow, setOpenRow] = useState<Row | null>(null);
   const [editingRow, setEditingRow] = useState<Row | null>(null);
   const [contactOptions, setContactOptions] = useState<Contact[]>([]);
+  const [assigningRow, setAssigningRow] = useState<Row | null>(null);
+  const [assignContact, setAssignContact] = useState<Contact | null>(null);
+  const [assigning, setAssigning] = useState(false);
+
+  const doAssign = async () => {
+    if (!assigningRow || !assignContact) { toast.error("Pick a contact"); return; }
+    setAssigning(true);
+    const { error } = await supabase
+      .from("interactions")
+      .update({ contact_id: assignContact.id })
+      .eq("id", assigningRow.id);
+    if (error) { setAssigning(false); toast.error(error.message); return; }
+    await supabase.from("contacts")
+      .update({ last_contact_date: assigningRow.date })
+      .eq("id", assignContact.id);
+    setAssigning(false);
+    toast.success(`Assigned to ${assignContact.full_name}`);
+    setAssigningRow(null);
+    setAssignContact(null);
+    load();
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,8 +158,20 @@ export default function Meetings() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-sm">
-                    <span className="font-semibold text-ink">{r.contact?.full_name || "Unknown"}</span>
-                    {r.contact?.company && <span className="text-muted-foreground ml-2">{r.contact.company}</span>}
+                    {r.contact ? (
+                      <>
+                        <span className="font-semibold text-ink">{r.contact.full_name}</span>
+                        {r.contact.company && <span className="text-muted-foreground ml-2">{r.contact.company}</span>}
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-orange">Unassigned</span>
+                        <button
+                          className="text-xs text-teal hover:underline ml-2"
+                          onClick={(e) => { e.stopPropagation(); setAssignContact(null); setAssigningRow(r); }}
+                        >Assign</button>
+                      </>
+                    )}
                   </div>
                   {r.summary && (
                     <div className="text-xs italic text-muted-foreground truncate mt-0.5">{r.summary}</div>
@@ -229,6 +265,28 @@ export default function Meetings() {
         } : null}
         onSaved={() => { setEditingRow(null); load(); }}
       />
+
+      {/* Assign contact modal */}
+      <Dialog open={!!assigningRow} onOpenChange={(v) => { if (!v) { setAssigningRow(null); setAssignContact(null); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-teal">Assign to contact</DialogTitle>
+          </DialogHeader>
+          {assigningRow && (
+            <div className="space-y-3">
+              <div className="text-sm bg-muted/40 rounded-md p-3">
+                <div className="text-xs text-muted-foreground">{fmtRowDate(assigningRow.date)} · {assigningRow.type}</div>
+                {assigningRow.summary && <div className="italic text-xs mt-1">{assigningRow.summary}</div>}
+              </div>
+              <ContactPicker label="Assign to" value={assignContact} onChange={setAssignContact} />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setAssigningRow(null); setAssignContact(null); }}>Cancel</Button>
+            <Button className="bg-teal hover:bg-teal/90 text-white" disabled={assigning} onClick={doAssign}>Assign</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
