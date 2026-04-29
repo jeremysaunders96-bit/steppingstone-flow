@@ -1,18 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
-import { supabase, type Contact, type ContactStatus } from "@/lib/supabase";
+import { supabase, type Contact } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatShortDate } from "@/lib/format";
 import { AddContactModal } from "@/components/modals/AddContactModal";
 import { NewIntroductionModal } from "@/components/modals/NewIntroductionModal";
-import { cn } from "@/lib/utils";
-
-const STATUS_FILTERS: ("all" | ContactStatus)[] = [
-  "all","contacted","replied","meeting booked","intro made","deal done","gone cold",
-];
 
 export default function Contacts() {
   const navigate = useNavigate();
@@ -21,7 +16,6 @@ export default function Contacts() {
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<"all" | ContactStatus>("all");
 
   const load = async () => {
     setLoading(true);
@@ -34,7 +28,6 @@ export default function Contacts() {
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
     return rows.filter(r => {
-      if (statusFilter !== "all" && r.status !== statusFilter) return false;
       if (!s) return true;
       return (
         r.full_name.toLowerCase().includes(s) ||
@@ -42,7 +35,7 @@ export default function Contacts() {
         (r.role || "").toLowerCase().includes(s)
       );
     });
-  }, [rows, q, statusFilter]);
+  }, [rows, q]);
 
   return (
     <div className="space-y-6">
@@ -60,26 +53,6 @@ export default function Contacts() {
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input className="pl-9" placeholder="Search name, company, role…" value={q} onChange={e=>setQ(e.target.value)} />
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {STATUS_FILTERS.map(s => {
-          const active = statusFilter === s;
-          return (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={cn(
-                "h-7 px-3 rounded-full text-[12px] font-medium transition-colors border",
-                active
-                  ? "bg-teal text-white border-teal"
-                  : "bg-transparent text-ink/70 border-border hover:border-teal hover:text-teal",
-              )}
-            >
-              {s}
-            </button>
-          );
-        })}
       </div>
 
       <div className="card-soft overflow-hidden">
