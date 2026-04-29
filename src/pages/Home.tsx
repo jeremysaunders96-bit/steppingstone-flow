@@ -1,10 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { supabase, type Contact, type Interaction, type Deal } from "@/lib/supabase";
 import { formatShortDate, daysSince } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { AddMeetingModal } from "@/components/modals/AddMeetingModal";
 import { DraftEmailModal } from "@/components/modals/DraftEmailModal";
 
 type OwesReplyRow = { interaction: Interaction; contact: Contact };
@@ -16,21 +15,13 @@ type ActiveDealRow = {
   days_since_activity: number | null;
 };
 
-type TodayMeeting = {
-  interaction: Interaction;
-  contact: Contact | null;
-  recentNote: Interaction | null;
-};
-
 export default function Home() {
   const [owesReply, setOwesReply] = useState<OwesReplyRow[]>([]);
   const [worthCall, setWorthCall] = useState<WorthCallRow[]>([]);
   const [upcoming, setUpcoming] = useState<UpcomingRow[]>([]);
-  const [meetings, setMeetings] = useState<TodayMeeting[]>([]);
   const [activeDeals, setActiveDeals] = useState<ActiveDealRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [meetingOpen, setMeetingOpen] = useState(false);
   const [draftFor, setDraftFor] = useState<Contact | null>(null);
 
   const load = useCallback(async () => {
@@ -108,29 +99,6 @@ export default function Home() {
       .filter((r: any) => r.contact)
       .map((r: any) => ({ interaction: r as Interaction, contact: r.contact as Contact }));
     setUpcoming(upcomingRows);
-
-    // Today's meetings
-    const { data: todays } = await supabase
-      .from("interactions").select("*, contact:contacts(*)")
-      .eq("type", "meeting").eq("date", todayStr)
-      .order("created_at");
-    const todaysList: TodayMeeting[] = (todays || []).map((i: any) => ({
-      interaction: i, contact: i.contact, recentNote: null,
-    }));
-    if (todaysList.length) {
-      const ids = todaysList.map(m => m.contact?.id).filter(Boolean) as string[];
-      const { data: notes } = await supabase
-        .from("interactions").select("*").in("contact_id", ids).order("date", { ascending: false });
-      const seen = new Set<string>();
-      (notes || []).forEach((n: any) => {
-        if (seen.has(n.contact_id)) return;
-        if (n.type === "meeting" && n.date === todayStr) return;
-        seen.add(n.contact_id);
-        const row = todaysList.find(m => m.contact?.id === n.contact_id);
-        if (row) row.recentNote = n;
-      });
-    }
-    setMeetings(todaysList);
 
     // Active deals (for the simpler summary row list)
     const active = allDealRows.filter(r => r.deal.stage !== "done");
@@ -252,37 +220,14 @@ export default function Home() {
 
       {/* Today */}
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display text-2xl text-teal">Today</h2>
-          <Button variant="ghost" className="text-teal" onClick={() => setMeetingOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Add today's meeting
+        <h2 className="font-display text-2xl text-teal mb-4">Today</h2>
+        <div className="card-soft py-12 px-6 flex flex-col items-center text-center gap-3">
+          <CalendarDays className="h-10 w-10 text-muted-foreground/60" strokeWidth={1.5} />
+          <p className="text-sm italic text-muted-foreground">Your calendar isn't connected yet.</p>
+          <Button className="bg-teal hover:bg-teal/90 text-white mt-1">
+            Connect Google Calendar
           </Button>
         </div>
-        {meetings.length === 0 ? (
-          <div className="card-soft p-6 text-sm text-muted-foreground italic">No meetings logged for today.</div>
-        ) : (
-          <div className="card-soft divide-y">
-            {meetings.map(({ interaction, contact, recentNote }) => (
-              <div key={interaction.id} className="px-5 py-4">
-                <div className="flex items-baseline justify-between gap-4">
-                  <div>
-                    <div className="font-semibold text-ink">{contact?.full_name || "Unknown"}</div>
-                    <div className="text-xs text-muted-foreground">{contact?.company || ""}</div>
-                    <div className="text-sm text-ink/80 mt-1">{interaction.summary}</div>
-                    {recentNote && (
-                      <div className="text-xs italic text-muted-foreground mt-1.5">{recentNote.summary}</div>
-                    )}
-                  </div>
-                  {contact && (
-                    <Link to={`/contacts/${contact.id}`} className="text-sm text-teal hover:underline whitespace-nowrap">
-                      View contact
-                    </Link>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </section>
 
       {/* Active Deals */}
@@ -315,7 +260,6 @@ export default function Home() {
         )}
       </section>
 
-      <AddMeetingModal open={meetingOpen} onOpenChange={setMeetingOpen} onSaved={load} />
       <DraftEmailModal open={!!draftFor} onOpenChange={(v)=>!v && setDraftFor(null)} contactName={draftFor?.full_name} contact={draftFor} />
     </div>
   );
