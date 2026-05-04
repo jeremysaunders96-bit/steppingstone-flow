@@ -71,8 +71,8 @@ export function DraftEmailModal({
           <div>
             <Label>What does this email need to do?</Label>
             <VoiceTextarea
-              placeholder="What does this email need to do? Describe in 1-2 sentences."
-              value={brief} onValueChange={setBrief} rows={3}
+              placeholder={`Speak or type the four things Claude needs:\n\n1. WHO - their name, company and role\n2. WHAT - what this email introduces or does\n3. CONNECTION - how you know them or who introduced you\n4. CONTEXT - anything Claude should use: a lunch coming up, something they said, why this matters to them specifically\n\nExample intro: "Victoria Stewart, chair of JPMorgan Claverhouse. Introduce Curation Connect. Introduced via Richard Plasket, first email. She runs a £500m trust and the discount problem is front of mind for her board."\n\nExample follow-up: "Nathan Brown at Numis. Chase him on the Curation meeting we discussed. Emailed two weeks ago, no response. Keep it short."`}
+              value={brief} onValueChange={setBrief} rows={12}
             />
           </div>
           <div>
