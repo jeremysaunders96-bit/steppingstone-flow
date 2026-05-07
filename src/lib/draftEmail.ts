@@ -1,8 +1,5 @@
-import { supabase } from "@/lib/supabase";
-import type { Contact } from "@/lib/supabase";
-
-const CLOUD_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const CLOUD_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+import { supabase } from "@/integrations/supabase/client";
+import { supabase as supabaseLegacy, type Contact } from "@/lib/supabase";
 
 export interface InteractionSummary {
   date?: string;
@@ -18,7 +15,7 @@ export interface ContactBrief {
 }
 
 export async function fetchRecentInteractions(contactId: string): Promise<InteractionSummary[]> {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseLegacy
     .from("interactions")
     .select("date, type, summary")
     .eq("contact_id", contactId)
@@ -54,21 +51,16 @@ type DraftIntroPayload = {
 };
 
 export async function generateDraft(payload: DraftSinglePayload | DraftIntroPayload): Promise<string> {
-  const url = `${CLOUD_URL}/functions/v1/draft-email`;
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${CLOUD_KEY}`,
-      apikey: CLOUD_KEY,
-    },
-    body: JSON.stringify(payload),
+  const { data, error } = await supabase.functions.invoke("draft-email", {
+    body: payload,
   });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    throw new Error(data?.error || "Could not generate the draft. Please try again.");
+  if (error) {
+    throw new Error(error.message || "Could not generate the draft. Please try again.");
   }
-  return (data.draft as string) ?? "";
+  if (data && typeof (data as { error?: string }).error === "string") {
+    throw new Error((data as { error: string }).error);
+  }
+  return ((data as { draft?: string })?.draft) ?? "";
 }
 
 export type DraftOutcome = "sent-as-written" | "edited-and-sent" | "rejected";
@@ -92,6 +84,6 @@ export async function saveDraftFeedback(args: {
     brief: args.brief ?? null,
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase.from("draft_feedback") as any).insert(row);
+  const { error } = await (supabaseLegacy.from("draft_feedback") as any).insert(row);
   if (error) throw error;
 }
