@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Contact } from "@/lib/supabase";
+import { supabase as supabaseLegacy, type Contact } from "@/lib/supabase";
 
 export interface InteractionSummary {
   date?: string;
@@ -15,7 +15,7 @@ export interface ContactBrief {
 }
 
 export async function fetchRecentInteractions(contactId: string): Promise<InteractionSummary[]> {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseLegacy
     .from("interactions")
     .select("date, type, summary")
     .eq("contact_id", contactId)
