@@ -84,6 +84,6 @@ export async function saveDraftFeedback(args: {
     brief: args.brief ?? null,
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase.from("draft_feedback") as any).insert(row);
+  const { error } = await (supabaseLegacy.from("draft_feedback") as any).insert(row);
   if (error) throw error;
 }
