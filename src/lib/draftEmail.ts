@@ -51,8 +51,12 @@ type DraftIntroPayload = {
 };
 
 export async function generateDraft(payload: DraftSinglePayload | DraftIntroPayload): Promise<string> {
+  const slimBody =
+    payload.mode === "single"
+      ? { mode: "single", brief: payload.brief, contact: payload.contact }
+      : { mode: "intro", brief: payload.brief, contact: payload.contactA };
   const { data, error } = await supabase.functions.invoke("draft-email", {
-    body: payload,
+    body: slimBody,
   });
   if (error) {
     throw new Error(error.message || "Could not generate the draft. Please try again.");
