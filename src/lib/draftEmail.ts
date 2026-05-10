@@ -55,7 +55,7 @@ export async function generateDraft(payload: DraftSinglePayload | DraftIntroPayl
     payload.mode === "single"
       ? { mode: "single", brief: payload.brief, contact: payload.contact }
       : { mode: "intro", brief: payload.brief, contact: payload.contactA };
-  const { data, error } = await supabase.functions.invoke("draft-email", {
+  const { data, error } = await supabaseLegacy.functions.invoke("draft-email", {
     body: slimBody,
   });
   if (error) {
