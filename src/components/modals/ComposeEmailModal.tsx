@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, Copy, RefreshCcw, Mic } from "lucide-react";
+import { Loader2, Copy, RefreshCcw, Mic, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ContactPicker } from "@/components/ContactPicker";
 import { type Contact } from "@/lib/supabase";
@@ -27,6 +27,14 @@ const TEMPLATES: { id: TemplateType; label: string }[] = [
   { id: "richard-noble", label: "Richard Noble (ThrustWSH)" },
   { id: "newsletter", label: "Newsletter Pitch" },
 ];
+
+const TEMPLATE_PLACEHOLDERS: Record<TemplateType, string> = {
+  "stepping-stone": "e.g. We met at the Langham yesterday, he runs a hospitality group and is interested in growing his profile. Lunch booked for next Thursday.",
+  "curation": "e.g. She chairs JPMorgan Claverhouse, we had lunch last week, she's interested but has to put it to the board next month.",
+  "waymap": "e.g. Introduced by James Blomfield, runs hotels in central London, focus should be on the built environment use case.",
+  "richard-noble": "e.g. Scottish entrepreneur, interested in sponsorship, met him at David Yarrow's exhibition.",
+  "newsletter": "e.g. Owner of a Cotswolds wine estate, I think they'd be a fit for the Christmas issue, mention Hayley Ferguson at Hanikon as a precedent.",
+};
 
 function getRecognition(): any | null {
   if (typeof window === "undefined") return null;
@@ -126,7 +134,7 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
         if (!transcript.trim()) { toast({ title: "Dictate something first", variant: "destructive" }); setLoading(false); return; }
         text = await generateDraft({
           mode: "dictation",
-          dictation: transcript.trim(),
+          brief: transcript.trim(),
           contact: brief,
         });
       }
@@ -177,8 +185,8 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as "template" | "dictate")}>
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="template">Template</TabsTrigger>
-            <TabsTrigger value="dictate">Dictate</TabsTrigger>
+            <TabsTrigger value="template">Use a template</TabsTrigger>
+            <TabsTrigger value="dictate">Dictate from scratch</TabsTrigger>
           </TabsList>
 
           <TabsContent value="template" className="space-y-3">
@@ -208,7 +216,7 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
                   <Textarea
                     value={personalisation}
                     onChange={(e) => setPersonalisation(e.target.value)}
-                    placeholder="Anything specific to add? (recent meeting, shared connection, why this person specifically)"
+                    placeholder={template ? TEMPLATE_PLACEHOLDERS[template] : "Add anything specific that should shape this email: a recent meeting, a shared connection, why this person specifically. The system will fill in the standard structure - you just add the personal context."}
                     rows={5}
                   />
                 </div>
@@ -272,6 +280,14 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
               <Button type="button" variant="outline" size="sm" onClick={generate} disabled={loading}>
                 {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCcw className="h-4 w-4 mr-1" />}
                 Regenerate
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => toast({ title: "Coming soon", description: "Will deploy with Gmail connection" })}
+              >
+                <Send className="h-4 w-4 mr-1" /> Send to Gmail Drafts
               </Button>
             </div>
             <DraftFeedback

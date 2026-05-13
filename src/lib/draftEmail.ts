@@ -53,7 +53,7 @@ type DraftIntroPayload = {
 
 type DraftDictationPayload = {
   mode: "dictation";
-  dictation: string;
+  brief: string;
   account?: string;
   contact?: ContactBrief | null;
 };
@@ -68,7 +68,7 @@ export async function generateDraft(
   } else if (payload.mode === "intro") {
     slimBody = { mode: "intro", brief: payload.brief, contact: payload.contactA };
   } else {
-    slimBody = { mode: "dictation", dictation: payload.dictation, contact: payload.contact ?? null };
+    slimBody = { mode: "dictation", brief: payload.brief, dictation: payload.brief, contact: payload.contact ?? null };
   }
   const { data, error } = await supabaseLegacy.functions.invoke("draft-email", {
     body: slimBody,
