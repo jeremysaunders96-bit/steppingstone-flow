@@ -1,106 +1,65 @@
-import Anthropic from "npm:@anthropic-ai/sdk@0.32.1";
-import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+Update the Compose Email modal at src/components/modals/ComposeEmailModal.tsx to support two distinct modes selected by tabs at the top of the modal:
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+MODE 1 - "USE A TEMPLATE" (default tab)
+Display 5 large buttons in a 2-column grid. Each button represents one of Will's standard email types. The button labels should be:
+- Stepping Stone Introduction
+- Curation Connect Introduction
+- Waymap Introduction
+- Richard Noble (ThrustWSH)
+- Newsletter Pitch
 
-const FALLBACK_SYSTEM_PROMPT = `You are drafting emails on behalf of William Meadon, founder of Steppingstone. Steppingstone is a one-stop-shop of fractional consultants and advisors helping UK SMEs grow, and runs a bi-monthly newsletter reaching 5,000 HNWIs. It is NOT a wealth management firm, family office, or mentoring service. Will spent 28 years at JPMorgan. Write exactly as he writes. Short paragraphs. Warm but direct. Never corporate. Never AI-sounding. Sign off simply.`;
+When a button is clicked:
+1. Highlight that button as selected
+2. Show a "To" field (contact picker, locked if launched from contact record)
+3. Show a textarea labelled "Personalisation" with placeholder: "Add anything specific that should shape this email: a recent meeting, a shared connection, why this person specifically. The system will fill in the standard structure - you just add the personal context."
+4. Show a "Generate" button
 
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+When Generate is clicked, call generateDraft with:
+- mode: "single"
+- brief: the personalisation text typed
+- templateType: the selected template id ("stepping-stone", "curation", "waymap", "richard-noble", or "newsletter")
+- contact: the contact brief
 
-  try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+MODE 2 - "DICTATE FROM SCRATCH" (second tab)
+Display:
+1. The "To" field (same)
+2. A large microphone button labelled "Hold to record, release to stop"
+3. A live transcript textarea showing what was captured (editable after stopping)
+4. A "Tidy into an email" button (only enabled when transcript has content)
 
-    const serviceKey = (() => {
-      const legacy = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      if (legacy) return legacy;
-      const secretKeys = Deno.env.get("SUPABASE_SECRET_KEYS");
-      if (secretKeys) {
-        try {
-          const parsed = JSON.parse(secretKeys);
-          return parsed.service_role ?? parsed.serviceRole ?? String(Object.values(parsed)[0]);
-        } catch { /* ignore */ }
-      }
-      return Deno.env.get("SUPABASE_ANON_KEY")!;
-    })();
+Use the existing Web Speech API approach from VoiceTextarea component for transcription. For hold-to-record, use mouseDown/touchStart to start and mouseUp/touchEnd to stop.
 
-    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!anthropicKey) throw new Error("ANTHROPIC_API_KEY not set");
+When "Tidy into an email" is clicked, call generateDraft with:
+- mode: "dictation"  
+- brief: the full dictation transcript
+- contact: the contact brief
 
-    const body = await req.json();
-    const { brief, contact, mode, templateType, dictation } = body;
+SHARED OUTPUT AREA (below both modes):
+After generation completes:
+- Editable textarea showing the draft
+- "Copy to clipboard" button
+- "Regenerate" button
+- "Send to Gmail Drafts" button (placeholder for now, just shows a toast saying "Coming soon - will deploy with Gmail connection")
+- The existing DraftFeedback component
 
-    if (!brief && !dictation) {
-      return new Response(JSON.stringify({ error: "brief or dictation is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+Update src/lib/draftEmail.ts to accept the new optional templateType field and new mode "dictation".
 
-    const sb = createClient(supabaseUrl, serviceKey);
-    let systemPrompt = FALLBACK_SYSTEM_PROMPT;
-    try {
-      const { data: ctxRows, error: ctxError } = await sb
-        .from("system_context")
-        .select("context_text")
-        .order("updated_at", { ascending: false })
-        .limit(1);
-      if (!ctxError && ctxRows && ctxRows[0]?.context_text) {
-        systemPrompt = ctxRows[0].context_text as string;
-        console.log("Loaded system_context, length:", systemPrompt.length);
-      } else {
-        console.log("Using fallback. DB error:", ctxError);
-      }
-    } catch (e) {
-      console.warn("system_context fetch failed:", e);
-    }
+Update the placeholder text in the personalisation field for each template:
 
-    const contactName = contact?.name ?? "the contact";
-    const contactCompany = contact?.company ? ` at ${contact.company}` : "";
+Stepping Stone:
+"e.g. We met at the Langham yesterday, he runs a hospitality group and is interested in growing his profile. Lunch booked for next Thursday."
 
-    const TEMPLATE_LABELS: Record<string, string> = {
-      "stepping-stone": "Stepping Stone Introduction",
-      "curation": "Curation Connect Introduction",
-      "waymap": "Waymap Introduction",
-      "richard-noble": "Richard Noble (ThrustWSH) Introduction",
-      "newsletter": "Newsletter Pitch",
-    };
+Curation:
+"e.g. She chairs JPMorgan Claverhouse, we had lunch last week, she's interested but has to put it to the board next month."
 
-    let userMessage: string;
-    if (mode === "dictation") {
-      userMessage = `Will dictated the following raw transcript for an email${contact ? ` to ${contactName}${contactCompany}` : ""}. Tidy it into a structured email in Will's voice. Preserve every piece of content and meaning. Fix grammar, structure and flow. Do not invent new facts. Short paragraphs. Sign off as Will.\n\nTranscript:\n"""\n${dictation}\n"""`;
-    } else if (templateType && TEMPLATE_LABELS[templateType]) {
-      const label = TEMPLATE_LABELS[templateType];
-      userMessage = `Draft a "${label}" email from Will to ${contactName}${contactCompany}. Use the canonical ${label} template defined in the system context above as the base. Personalise it using the notes below; if no personalisation is given, send the standard version.\n\nPersonalisation notes: ${brief || "(none)"}\n\nKeep Will's voice. Short paragraphs. Sign off as Will. Template type: ${templateType}.`;
-    } else {
-      userMessage = `Write a short, personal email from Will to ${contactName}${contactCompany}.\n\nBrief: ${brief}\n\nKeep it to 3-4 short paragraphs. Warm but not gushing. No bullet points. Sign off as Will.`;
-    }
+Waymap:
+"e.g. Introduced by James Blomfield, runs hotels in central London, focus should be on the built environment use case."
 
-    const anthropic = new Anthropic({ apiKey: anthropicKey });
-    const response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 600,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
-    });
+Richard Noble:
+"e.g. Scottish entrepreneur, interested in sponsorship, met him at David Yarrow's exhibition."
 
-    const draft = (response.content[0] as { type: string; text: string }).text;
+Newsletter:
+"e.g. Owner of a Cotswolds wine estate, I think they'd be a fit for the Christmas issue, mention Hayley Ferguson at Hanikon as a precedent."
 
-    return new Response(JSON.stringify({ draft }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-
-  } catch (error) {
-    console.error("draft-email error:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-});
+Keep all other modal functionality identical including the locked contact behaviour when launched from a contact record.
+  
