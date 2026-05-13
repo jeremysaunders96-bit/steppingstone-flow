@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Home, Users, Linkedin, Mail, Briefcase, Calendar, AlertCircle, Mic, CheckSquare } from "lucide-react";
+import { Home, Users, Linkedin, Mail, Briefcase, Calendar, AlertCircle, Mic, CheckSquare, FileText } from "lucide-react";
 import { useAttentionCount } from "@/hooks/useAttentionCount";
 import { useActiveDealsCount } from "@/hooks/useActiveDealsCount";
 import { useUnmatchedCount } from "@/hooks/useUnmatchedCount";
@@ -25,6 +25,7 @@ export function Sidebar({
     { to: "/deals", label: "Deals", icon: Briefcase, end: false, key: "deals" as const },
     ...(unmatched > 0 ? [{ to: "/unmatched", label: "Unmatched", icon: AlertCircle, end: false, key: "unmatched" as const }] : []),
     { to: "/linkedin", label: "LinkedIn Queue", icon: Linkedin, end: false, key: "linkedin" as const },
+    { to: "/quick-assets", label: "Quick Assets", icon: FileText, end: false, key: "quick-assets" as const },
   ];
   return (
     <aside className="hidden md:flex md:flex-col w-[240px] shrink-0 bg-teal text-white min-h-screen">

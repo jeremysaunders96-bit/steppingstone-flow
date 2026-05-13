@@ -12,6 +12,7 @@ import Deals from "./pages/Deals";
 import Meetings from "./pages/Meetings";
 import Unmatched from "./pages/Unmatched";
 import ActionItems from "./pages/ActionItems";
+import QuickAssets from "./pages/QuickAssets";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/deals" element={<Deals />} />
             <Route path="/unmatched" element={<Unmatched />} />
             <Route path="/linkedin" element={<LinkedInQueue />} />
+            <Route path="/quick-assets" element={<QuickAssets />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
