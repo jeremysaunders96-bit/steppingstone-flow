@@ -50,6 +50,36 @@ export type Database = {
         }
         Relationships: []
       }
+      email_templates: {
+        Row: {
+          body_template: string
+          created_at: string
+          guidance: string
+          id: string
+          label: string
+          subject_template: string
+          updated_at: string
+        }
+        Insert: {
+          body_template: string
+          created_at?: string
+          guidance: string
+          id: string
+          label: string
+          subject_template: string
+          updated_at?: string
+        }
+        Update: {
+          body_template?: string
+          created_at?: string
+          guidance?: string
+          id?: string
+          label?: string
+          subject_template?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       quick_assets: {
         Row: {
           category: string
