@@ -1,5 +1,6 @@
-import Anthropic from "npm:@anthropic-ai/sdk@0.32.1";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { generateText } from "npm:ai";
+import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -251,9 +252,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+    const apiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: "Anthropic API key is not configured." }), {
+      return new Response(JSON.stringify({ error: "AI drafting is not configured." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -360,19 +361,19 @@ Deno.serve(async (req) => {
       userMessage = buildGeneralUserMessage(body, { contactSpecific, recentEdited });
     }
 
-    const client = new Anthropic({ apiKey });
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 2000,
+    const gateway = createOpenAICompatible({
+      name: "lovable-ai",
+      baseURL: "https://ai.gateway.lovable.dev/v1",
+      headers: { "Lovable-API-Key": apiKey },
+    });
+    const response = await generateText({
+      model: gateway("google/gemini-3-flash-preview"),
+      maxOutputTokens: 2000,
       system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
+      prompt: userMessage,
     });
 
-    const draft = response.content
-      .filter((b) => b.type === "text")
-      .map((b) => (b as { text: string }).text)
-      .join("\n")
-      .trim();
+    const draft = response.text.trim();
 
     return new Response(JSON.stringify({ draft }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

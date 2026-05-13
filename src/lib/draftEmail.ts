@@ -11,6 +11,10 @@ export interface ContactBrief {
   name: string;
   company?: string | null;
   id?: string | null;
+  notes?: string | null;
+  segment?: string | null;
+  how_we_met?: string | null;
+  status?: string | null;
   recent_interactions?: InteractionSummary[];
 }
 
@@ -28,10 +32,15 @@ export async function fetchRecentInteractions(contactId: string): Promise<Intera
 }
 
 export function contactToBrief(contact: Contact, interactions: InteractionSummary[]): ContactBrief {
+  const contactWithSegment = contact as Contact & { segment?: string | null };
   return {
     id: contact.id,
     name: contact.full_name,
     company: contact.company,
+    notes: contact.notes,
+    segment: contactWithSegment.segment ?? null,
+    how_we_met: contact.how_we_met,
+    status: contact.status,
     recent_interactions: interactions,
   };
 }
@@ -70,7 +79,7 @@ export async function generateDraft(
   } else {
     slimBody = { mode: "dictation", brief: payload.brief, dictation: payload.brief, contact: payload.contact ?? null };
   }
-  const { data, error } = await supabaseLegacy.functions.invoke("draft-email", {
+  const { data, error } = await supabase.functions.invoke("draft-email", {
     body: slimBody,
   });
   if (error) {
