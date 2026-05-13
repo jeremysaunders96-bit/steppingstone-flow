@@ -32,12 +32,13 @@ export async function fetchRecentInteractions(contactId: string): Promise<Intera
 }
 
 export function contactToBrief(contact: Contact, interactions: InteractionSummary[]): ContactBrief {
+  const contactWithSegment = contact as Contact & { segment?: string | null };
   return {
     id: contact.id,
     name: contact.full_name,
     company: contact.company,
     notes: contact.notes,
-    segment: "segment" in contact ? contact.segment : null,
+    segment: contactWithSegment.segment ?? null,
     how_we_met: contact.how_we_met,
     status: contact.status,
     recent_interactions: interactions,
