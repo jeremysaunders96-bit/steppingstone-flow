@@ -4,10 +4,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Loader2, Copy, RefreshCcw, Mic, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ContactPicker } from "@/components/ContactPicker";
-import { type Contact } from "@/lib/supabase";
+import { type Contact, supabase } from "@/lib/supabase";
 import { generateDraft, fetchRecentInteractions, contactToBrief } from "@/lib/draftEmail";
 import { DraftFeedback } from "@/components/DraftFeedback";
 import { cn } from "@/lib/utils";
@@ -60,6 +61,29 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
   const recRef = useRef<any>(null);
   const baseRef = useRef<string>("");
   const finalChunksRef = useRef<string>("");
+
+  const [quickAssets, setQuickAssets] = useState<{ id: string; label: string; content: string; category: string }[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      const { data } = await supabase
+        .from("quick_assets")
+        .select("id,label,content,category")
+        .order("category", { ascending: true })
+        .order("label", { ascending: true });
+      setQuickAssets((data ?? []) as any);
+    })();
+  }, [open]);
+
+  const insertAsset = (a: { label: string; content: string }) => {
+    if (tab === "template") {
+      setPersonalisation((p) => (p ? p.replace(/\s+$/, "") + "\n\n" : "") + a.content);
+    } else {
+      setTranscript((p) => (p ? p.replace(/\s+$/, "") + "\n\n" : "") + a.content);
+    }
+    toast({ title: `Inserted ${a.label}` });
+  };
 
   useEffect(() => {
     const w = typeof window !== "undefined" ? (window as any) : null;
@@ -291,6 +315,30 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
         )}
 
         <div className="pt-3">
+          {quickAssets.length > 0 && (
+            <Accordion type="single" collapsible className="mb-3">
+              <AccordionItem value="qa" className="border rounded-md px-3">
+                <AccordionTrigger className="text-sm">
+                  Quick Assets — Insert bio, signature or other saved content
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="flex flex-wrap gap-2 pb-2">
+                    {quickAssets.map((a) => (
+                      <Button
+                        key={a.id}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => insertAsset(a)}
+                      >
+                        {a.label}
+                      </Button>
+                    ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
           <Button className="w-full bg-teal hover:bg-teal/90 text-white" onClick={generate} disabled={loading}>
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {tab === "dictate" ? "Tidy into an email" : "Generate"}
