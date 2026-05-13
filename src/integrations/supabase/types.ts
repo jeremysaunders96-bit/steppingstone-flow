@@ -50,6 +50,30 @@ export type Database = {
         }
         Relationships: []
       }
+      quick_assets: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          id: string
+          label: string
+        }
+        Insert: {
+          category?: string
+          content: string
+          created_at?: string
+          id?: string
+          label: string
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          id?: string
+          label?: string
+        }
+        Relationships: []
+      }
       system_context: {
         Row: {
           context_text: string

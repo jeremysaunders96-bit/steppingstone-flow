@@ -1,60 +1,135 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { VoiceTextarea } from "@/components/VoiceTextarea";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Copy, RefreshCcw } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Loader2, Copy, RefreshCcw, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ContactPicker } from "@/components/ContactPicker";
 import { type Contact } from "@/lib/supabase";
 import { generateDraft, fetchRecentInteractions, contactToBrief } from "@/lib/draftEmail";
 import { DraftFeedback } from "@/components/DraftFeedback";
+import { cn } from "@/lib/utils";
 
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  /** When provided, the contact is pre-selected and locked. */
   lockedContact?: Contact | null;
 }
 
+type TemplateType = "stepping-stone" | "curation" | "waymap" | "richard-noble" | "newsletter";
+
+const TEMPLATES: { id: TemplateType; label: string }[] = [
+  { id: "stepping-stone", label: "Stepping Stone Introduction" },
+  { id: "curation", label: "Curation Connect Introduction" },
+  { id: "waymap", label: "Waymap Introduction" },
+  { id: "richard-noble", label: "Richard Noble (ThrustWSH)" },
+  { id: "newsletter", label: "Newsletter Pitch" },
+];
+
+function getRecognition(): any | null {
+  if (typeof window === "undefined") return null;
+  const w = window as any;
+  const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
+  return Ctor ? new Ctor() : null;
+}
+
 export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) {
+  const [tab, setTab] = useState<"template" | "dictate">("template");
   const [contact, setContact] = useState<Contact | null>(lockedContact ?? null);
-  const [subject, setSubject] = useState("");
-  const [brief, setBrief] = useState("");
-  const [account, setAccount] = useState("william@steppingstone.co.uk");
+  const [template, setTemplate] = useState<TemplateType | null>(null);
+  const [personalisation, setPersonalisation] = useState("");
+  const [transcript, setTranscript] = useState("");
   const [draft, setDraft] = useState("");
   const [originalDraft, setOriginalDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
+  // hold-to-record
+  const [recording, setRecording] = useState(false);
+  const [supported, setSupported] = useState(false);
+  const recRef = useRef<any>(null);
+  const baseRef = useRef<string>("");
+  const finalChunksRef = useRef<string>("");
+
+  useEffect(() => {
+    const w = typeof window !== "undefined" ? (window as any) : null;
+    setSupported(!!(w && (w.SpeechRecognition || w.webkitSpeechRecognition)));
+    return () => { try { recRef.current?.stop(); } catch { /* noop */ } };
+  }, []);
 
   useEffect(() => {
     if (open) setContact(lockedContact ?? null);
   }, [open, lockedContact]);
 
   const reset = () => {
-    setSubject(""); setBrief(""); setDraft(""); setOriginalDraft(""); setLoading(false);
+    setTab("template");
+    setTemplate(null);
+    setPersonalisation("");
+    setTranscript("");
+    setDraft("");
+    setOriginalDraft("");
+    setLoading(false);
     if (!lockedContact) setContact(null);
   };
 
-  const run = async () => {
+  const startRecording = () => {
+    if (recording) return;
+    const rec = getRecognition();
+    if (!rec) { toast({ title: "Speech recognition not supported in this browser", variant: "destructive" }); return; }
+    recRef.current = rec;
+    baseRef.current = transcript;
+    finalChunksRef.current = "";
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = (typeof navigator !== "undefined" && navigator.language) || "en-GB";
+    rec.onresult = (event: any) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const r = event.results[i];
+        const t = r[0].transcript;
+        if (r.isFinal) finalChunksRef.current += t;
+        else interim += t;
+      }
+      const combined = (finalChunksRef.current + interim).trim();
+      const sep = baseRef.current && !baseRef.current.endsWith(" ") ? " " : "";
+      setTranscript(baseRef.current + sep + combined);
+    };
+    rec.onerror = () => { setRecording(false); };
+    rec.onend = () => { setRecording(false); };
+    try { rec.start(); setRecording(true); } catch { setRecording(false); }
+  };
+
+  const stopRecording = () => {
+    try { recRef.current?.stop(); } catch { /* noop */ }
+    setRecording(false);
+  };
+
+  const generate = async () => {
     if (!contact) { toast({ title: "Pick a contact first", variant: "destructive" }); return; }
-    if (!brief.trim()) { toast({ title: "Add a quick brief", description: "Describe what the email needs to do." }); return; }
     setLoading(true);
     try {
       const interactions = await fetchRecentInteractions(contact.id);
-      const subjectLine = subject.trim();
-      const fullBrief = subjectLine
-        ? `Subject line: "${subjectLine}". ${brief.trim()}`
-        : brief.trim();
-      const text = await generateDraft({
-        mode: "single",
-        brief: fullBrief,
-        account,
-        contact: contactToBrief(contact, interactions),
-      });
+      const brief = contactToBrief(contact, interactions);
+      let text = "";
+      if (tab === "template") {
+        if (!template) { toast({ title: "Choose a template", variant: "destructive" }); setLoading(false); return; }
+        text = await generateDraft({
+          mode: "single",
+          brief: personalisation.trim() || "(no extra personalisation)",
+          account: "william@steppingstone.co.uk",
+          contact: brief,
+          templateType: template,
+        });
+      } else {
+        if (!transcript.trim()) { toast({ title: "Dictate something first", variant: "destructive" }); setLoading(false); return; }
+        text = await generateDraft({
+          mode: "dictation",
+          dictation: transcript.trim(),
+          contact: brief,
+        });
+      }
       setDraft(text);
       setOriginalDraft(text);
     } catch (e) {
@@ -69,13 +144,29 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
   };
 
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(draft);
-      toast({ title: "Copied to clipboard" });
-    } catch {
-      toast({ title: "Could not copy", variant: "destructive" });
-    }
+    try { await navigator.clipboard.writeText(draft); toast({ title: "Copied to clipboard" }); }
+    catch { toast({ title: "Could not copy", variant: "destructive" }); }
   };
+
+  const briefForFeedback = tab === "template"
+    ? `[${template ?? "no-template"}] ${personalisation}`
+    : transcript;
+
+  const ToField = (
+    lockedContact ? (
+      <div>
+        <Label>To</Label>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/40">
+          <span className="text-sm">
+            <strong>{lockedContact.full_name}</strong>
+            {lockedContact.company ? ` — ${lockedContact.company}` : ""}
+          </span>
+        </div>
+      </div>
+    ) : (
+      <ContactPicker label="To" value={contact} onChange={setContact} allowCreate />
+    )
+  );
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
@@ -83,72 +174,118 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
         <DialogHeader>
           <DialogTitle className="font-display text-teal">Compose email</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          {lockedContact ? (
-            <div>
-              <Label>To</Label>
-              <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/40">
-                <span className="text-sm">
-                  <strong>{lockedContact.full_name}</strong>
-                  {lockedContact.company ? ` — ${lockedContact.company}` : ""}
-                </span>
-              </div>
+
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "template" | "dictate")}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="template">Template</TabsTrigger>
+            <TabsTrigger value="dictate">Dictate</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="template" className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              {TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTemplate(t.id)}
+                  className={cn(
+                    "rounded-md border px-3 py-4 text-sm text-left transition-colors min-h-[64px]",
+                    template === t.id
+                      ? "border-teal bg-teal/10 text-teal font-medium"
+                      : "border-border hover:bg-muted"
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
-          ) : (
-            <ContactPicker label="To" value={contact} onChange={setContact} allowCreate />
-          )}
-          <div>
-            <Label>Subject</Label>
-            <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject line" />
-          </div>
-          <div>
-            <Label>What does this email need to do?</Label>
-            <VoiceTextarea
-              placeholder={`Speak or type the four things Claude needs:\n\n1. WHO - their name, company and role\n2. WHAT - what this email introduces or does\n3. CONNECTION - how you know them or who introduced you\n4. CONTEXT - anything Claude should use: a lunch coming up, something they said, why this matters to them specifically\n\nExample intro: "Victoria Stewart, chair of JPMorgan Claverhouse. Introduce Curation Connect. Introduced via Richard Plasket, first email. She runs a £500m trust and the discount problem is front of mind for her board."\n\nExample follow-up: "Nathan Brown at Numis. Chase him on the Curation meeting we discussed. Emailed two weeks ago, no response. Keep it short."`}
-              value={brief}
-              onValueChange={setBrief}
-              rows={12}
-            />
-          </div>
-          <div>
-            <Label>Send from</Label>
-            <Select value={account} onValueChange={setAccount}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="william@steppingstone.co.uk">william@steppingstone.co.uk</SelectItem>
-                <SelectItem value="willmeadon@gmail.com">willmeadon@gmail.com</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {draft && (
-            <div className="space-y-2">
-              <Label>Draft</Label>
-              <Textarea value={draft} onChange={e => setDraft(e.target.value)} rows={14} className="font-sans text-sm" />
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={copy}>
-                  <Copy className="h-4 w-4 mr-1" /> Copy to clipboard
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={run} disabled={loading}>
-                  {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCcw className="h-4 w-4 mr-1" />}
-                  Regenerate
+
+            {template && (
+              <div className="space-y-3 pt-2">
+                {ToField}
+                <div>
+                  <Label>Personalisation</Label>
+                  <Textarea
+                    value={personalisation}
+                    onChange={(e) => setPersonalisation(e.target.value)}
+                    placeholder="Anything specific to add? (recent meeting, shared connection, why this person specifically)"
+                    rows={5}
+                  />
+                </div>
+                <Button className="bg-teal hover:bg-teal/90 text-white" onClick={generate} disabled={loading}>
+                  {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Generate
                 </Button>
               </div>
-              <DraftFeedback
-                mode="single"
-                contactId={contact?.id ?? null}
-                originalDraft={originalDraft}
-                currentDraft={draft}
-                brief={brief}
+            )}
+          </TabsContent>
+
+          <TabsContent value="dictate" className="space-y-3 pt-2">
+            {ToField}
+            <div className="flex flex-col items-center gap-2 py-4">
+              <button
+                type="button"
+                disabled={!supported}
+                onMouseDown={startRecording}
+                onMouseUp={stopRecording}
+                onMouseLeave={() => recording && stopRecording()}
+                onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+                onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
+                className={cn(
+                  "h-20 w-20 rounded-full border-2 flex items-center justify-center transition-all select-none",
+                  recording
+                    ? "border-orange bg-orange/20 text-orange animate-pulse scale-110"
+                    : "border-teal bg-teal/10 text-teal hover:bg-teal/20",
+                  !supported && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                <Mic className="h-8 w-8" />
+              </button>
+              <p className="text-xs text-muted-foreground">
+                {supported ? "Hold to dictate, release to stop" : "Speech recognition not supported in this browser"}
+              </p>
+            </div>
+            <div>
+              <Label>Transcript</Label>
+              <Textarea
+                value={transcript}
+                onChange={(e) => setTranscript(e.target.value)}
+                placeholder="Your dictation appears here. You can edit it before generating."
+                rows={8}
               />
             </div>
-          )}
-        </div>
+            <Button className="bg-teal hover:bg-teal/90 text-white" onClick={generate} disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Tidy into an email
+            </Button>
+          </TabsContent>
+        </Tabs>
+
+        {draft && (
+          <div className="space-y-2 pt-3 border-t mt-3">
+            <Label>Draft</Label>
+            <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={14} className="font-sans text-sm" />
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={copy}>
+                <Copy className="h-4 w-4 mr-1" /> Copy to clipboard
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={generate} disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCcw className="h-4 w-4 mr-1" />}
+                Regenerate
+              </Button>
+            </div>
+            <DraftFeedback
+              mode="single"
+              contactId={contact?.id ?? null}
+              originalDraft={originalDraft}
+              currentDraft={draft}
+              brief={briefForFeedback}
+            />
+          </div>
+        )}
+
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>
-          <Button className="bg-teal hover:bg-teal/90 text-white" onClick={run} disabled={loading}>
-            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Generate Draft
-          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
