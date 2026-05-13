@@ -11,6 +11,10 @@ export interface ContactBrief {
   name: string;
   company?: string | null;
   id?: string | null;
+  notes?: string | null;
+  segment?: string | null;
+  how_we_met?: string | null;
+  status?: string | null;
   recent_interactions?: InteractionSummary[];
 }
 
@@ -32,6 +36,10 @@ export function contactToBrief(contact: Contact, interactions: InteractionSummar
     id: contact.id,
     name: contact.full_name,
     company: contact.company,
+    notes: contact.notes,
+    segment: "segment" in contact ? contact.segment : null,
+    how_we_met: contact.how_we_met,
+    status: contact.status,
     recent_interactions: interactions,
   };
 }
