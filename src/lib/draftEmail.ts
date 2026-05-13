@@ -70,7 +70,7 @@ export async function generateDraft(
   } else {
     slimBody = { mode: "dictation", brief: payload.brief, dictation: payload.brief, contact: payload.contact ?? null };
   }
-  const { data, error } = await supabaseLegacy.functions.invoke("draft-email", {
+  const { data, error } = await supabase.functions.invoke("draft-email", {
     body: slimBody,
   });
   if (error) {
