@@ -34,10 +34,10 @@ Deno.serve(async (req: Request) => {
     if (!anthropicKey) throw new Error("ANTHROPIC_API_KEY not set");
 
     const body = await req.json();
-    const { brief, contact } = body;
+    const { brief, contact, mode, templateType, dictation } = body;
 
-    if (!brief) {
-      return new Response(JSON.stringify({ error: "brief is required" }), {
+    if (!brief && !dictation) {
+      return new Response(JSON.stringify({ error: "brief or dictation is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -63,7 +63,24 @@ Deno.serve(async (req: Request) => {
 
     const contactName = contact?.name ?? "the contact";
     const contactCompany = contact?.company ? ` at ${contact.company}` : "";
-    const userMessage = `Write a short, personal email from Will to ${contactName}${contactCompany}.\n\nBrief: ${brief}\n\nKeep it to 3-4 short paragraphs. Warm but not gushing. No bullet points. Sign off as Will.`;
+
+    const TEMPLATE_LABELS: Record<string, string> = {
+      "stepping-stone": "Stepping Stone Introduction",
+      "curation": "Curation Connect Introduction",
+      "waymap": "Waymap Introduction",
+      "richard-noble": "Richard Noble (ThrustWSH) Introduction",
+      "newsletter": "Newsletter Pitch",
+    };
+
+    let userMessage: string;
+    if (mode === "dictation") {
+      userMessage = `Will dictated the following raw transcript for an email${contact ? ` to ${contactName}${contactCompany}` : ""}. Tidy it into a structured email in Will's voice. Preserve every piece of content and meaning. Fix grammar, structure and flow. Do not invent new facts. Short paragraphs. Sign off as Will.\n\nTranscript:\n"""\n${dictation}\n"""`;
+    } else if (templateType && TEMPLATE_LABELS[templateType]) {
+      const label = TEMPLATE_LABELS[templateType];
+      userMessage = `Draft a "${label}" email from Will to ${contactName}${contactCompany}. Use the canonical ${label} template defined in the system context above as the base. Personalise it using the notes below; if no personalisation is given, send the standard version.\n\nPersonalisation notes: ${brief || "(none)"}\n\nKeep Will's voice. Short paragraphs. Sign off as Will. Template type: ${templateType}.`;
+    } else {
+      userMessage = `Write a short, personal email from Will to ${contactName}${contactCompany}.\n\nBrief: ${brief}\n\nKeep it to 3-4 short paragraphs. Warm but not gushing. No bullet points. Sign off as Will.`;
+    }
 
     const anthropic = new Anthropic({ apiKey: anthropicKey });
     const response = await anthropic.messages.create({

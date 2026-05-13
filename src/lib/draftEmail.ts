@@ -41,6 +41,7 @@ type DraftSinglePayload = {
   brief: string;
   account: string;
   contact: ContactBrief;
+  templateType?: "stepping-stone" | "curation" | "waymap" | "richard-noble" | "newsletter";
 };
 
 type DraftIntroPayload = {
@@ -50,11 +51,25 @@ type DraftIntroPayload = {
   contactB: ContactBrief;
 };
 
-export async function generateDraft(payload: DraftSinglePayload | DraftIntroPayload): Promise<string> {
-  const slimBody =
-    payload.mode === "single"
-      ? { mode: "single", brief: payload.brief, contact: payload.contact }
-      : { mode: "intro", brief: payload.brief, contact: payload.contactA };
+type DraftDictationPayload = {
+  mode: "dictation";
+  dictation: string;
+  account?: string;
+  contact?: ContactBrief | null;
+};
+
+export async function generateDraft(
+  payload: DraftSinglePayload | DraftIntroPayload | DraftDictationPayload
+): Promise<string> {
+  let slimBody: Record<string, unknown>;
+  if (payload.mode === "single") {
+    slimBody = { mode: "single", brief: payload.brief, contact: payload.contact };
+    if (payload.templateType) slimBody.templateType = payload.templateType;
+  } else if (payload.mode === "intro") {
+    slimBody = { mode: "intro", brief: payload.brief, contact: payload.contactA };
+  } else {
+    slimBody = { mode: "dictation", dictation: payload.dictation, contact: payload.contact ?? null };
+  }
   const { data, error } = await supabaseLegacy.functions.invoke("draft-email", {
     body: slimBody,
   });
