@@ -364,7 +364,10 @@ Deno.serve(async (req) => {
     const gateway = createOpenAICompatible({
       name: "lovable-ai",
       baseURL: "https://ai.gateway.lovable.dev/v1",
-      headers: { "Lovable-API-Key": apiKey },
+      headers: {
+        "Lovable-API-Key": apiKey,
+        "X-Lovable-AIG-SDK": "vercel-ai-sdk",
+      },
     });
     const response = await generateText({
       model: gateway("google/gemini-3-flash-preview"),
