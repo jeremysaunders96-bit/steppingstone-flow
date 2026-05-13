@@ -1,12 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Copy } from "lucide-react";
 import { supabase, type Contact, type Interaction, type Deal } from "@/lib/supabase";
 import { formatShortDate, daysSince } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { DraftEmailModal } from "@/components/modals/DraftEmailModal";
 import { ActionItemList } from "@/components/ActionItemList";
 import { HomeActionItems } from "@/components/HomeActionItems";
+import { useToast } from "@/hooks/use-toast";
+
+const BIO_TEXT = "William Meadon, a chartered accountant, joined Schroders in the late 1980s as a balanced pension fund manager. He then joined Newton Investment Management, where the firm's funds under management increased tenfold during his tenure. In 1996, he joined Flemings, which J.P. Morgan later acquired. During his 28 years at J.P. Morgan, William lead the firm's Core Team where he managed a range of UK, European, and global long-only funds, including several investment trusts such as JPM Claverhouse. In 2024, he left J.P. Morgan to found Steppingstone, a one-stop-shop to help UK businesses grow through its network of fractional experts and advisors.";
 
 type OwesReplyRow = { interaction: Interaction; contact: Contact };
 type WorthCallRow = { contact: Contact };
@@ -25,6 +28,16 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   const [draftFor, setDraftFor] = useState<Contact | null>(null);
+  const { toast } = useToast();
+
+  const copyBio = async () => {
+    try {
+      await navigator.clipboard.writeText(BIO_TEXT);
+      toast({ title: "Bio copied to clipboard" });
+    } catch {
+      toast({ title: "Could not copy", variant: "destructive" });
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -274,6 +287,27 @@ export default function Home() {
       </section>
 
       <DraftEmailModal open={!!draftFor} onOpenChange={(v)=>!v && setDraftFor(null)} contactName={draftFor?.full_name} contact={draftFor} />
+
+      {/* Bio */}
+      <section>
+        <div className="rounded-lg overflow-hidden border border-teal/20 bg-background">
+          <div className="bg-teal px-5 py-3">
+            <h2 className="font-display text-xl text-white" style={{ fontFamily: "Georgia, serif" }}>Bio</h2>
+          </div>
+          <div className="p-5 space-y-4">
+            <p className="text-sm leading-relaxed text-ink/90 whitespace-pre-wrap">{BIO_TEXT}</p>
+            <div className="flex justify-end">
+              <Button
+                onClick={copyBio}
+                style={{ backgroundColor: "#d97732" }}
+                className="text-white hover:opacity-90"
+              >
+                <Copy className="h-4 w-4 mr-2" /> Copy Bio
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
