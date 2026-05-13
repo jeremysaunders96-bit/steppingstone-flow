@@ -197,10 +197,10 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
                   type="button"
                   onClick={() => setTemplate(t.id)}
                   className={cn(
-                    "rounded-md border px-3 py-4 text-sm text-left transition-colors min-h-[64px]",
+                    "rounded-md border-2 px-3 py-4 text-sm text-left text-white font-medium transition-colors min-h-[64px]",
                     template === t.id
-                      ? "border-teal bg-teal/10 text-teal font-medium"
-                      : "border-border hover:bg-muted"
+                      ? "border-orange bg-teal/90"
+                      : "border-transparent bg-teal hover:bg-teal/80"
                   )}
                 >
                   {t.label}
@@ -220,10 +220,6 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
                     rows={5}
                   />
                 </div>
-                <Button className="bg-teal hover:bg-teal/90 text-white" onClick={generate} disabled={loading}>
-                  {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Generate
-                </Button>
               </div>
             )}
           </TabsContent>
@@ -234,11 +230,7 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
               <button
                 type="button"
                 disabled={!supported}
-                onMouseDown={startRecording}
-                onMouseUp={stopRecording}
-                onMouseLeave={() => recording && stopRecording()}
-                onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
-                onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
+                onClick={() => (recording ? stopRecording() : startRecording())}
                 className={cn(
                   "h-20 w-20 rounded-full border-2 flex items-center justify-center transition-all select-none",
                   recording
@@ -250,7 +242,9 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
                 <Mic className="h-8 w-8" />
               </button>
               <p className="text-xs text-muted-foreground">
-                {supported ? "Hold to dictate, release to stop" : "Speech recognition not supported in this browser"}
+                {supported
+                  ? recording ? "Recording - click to stop" : "Click to dictate"
+                  : "Speech recognition not supported in this browser"}
               </p>
             </div>
             <div>
@@ -262,10 +256,6 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
                 rows={8}
               />
             </div>
-            <Button className="bg-teal hover:bg-teal/90 text-white" onClick={generate} disabled={loading}>
-              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Tidy into an email
-            </Button>
           </TabsContent>
         </Tabs>
 
@@ -299,6 +289,13 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
             />
           </div>
         )}
+
+        <div className="pt-3">
+          <Button className="w-full bg-teal hover:bg-teal/90 text-white" onClick={generate} disabled={loading}>
+            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {tab === "dictate" ? "Tidy into an email" : "Generate"}
+          </Button>
+        </div>
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>
