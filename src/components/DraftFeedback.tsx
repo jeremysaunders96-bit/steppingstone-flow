@@ -1,38 +1,41 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { saveDraftFeedback, type DraftOutcome } from "@/lib/draftEmail";
+import { saveDraftFeedback } from "@/lib/draftEmail";
 
 interface Props {
   mode: "single" | "intro";
   contactId?: string | null;
   originalDraft: string;
-  currentDraft: string;
   brief?: string | null;
 }
 
-export function DraftFeedback({ mode, contactId, originalDraft, currentDraft, brief }: Props) {
+// Sent / edited outcomes are captured implicitly when Will hits Send to Drafts or Copy
+// in ComposeEmailModal. This component is just the "this draft was rubbish" escape hatch
+// for the case where the model produced something Will doesn't want to use at all —
+// the one signal we cannot infer from a commit action.
+export function DraftFeedback({ mode, contactId, originalDraft, brief }: Props) {
   const { toast } = useToast();
-  const [saved, setSaved] = useState<DraftOutcome | null>(null);
-  const [showEdit, setShowEdit] = useState(false);
-  const [notes, setNotes] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [showNote, setShowNote] = useState(false);
+  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const save = async (outcome: DraftOutcome, finalVersion?: string, editNotes?: string) => {
+  const markRubbish = async () => {
     setBusy(true);
     try {
       await saveDraftFeedback({
         contactId: contactId ?? null,
         mode,
-        outcome,
+        outcome: "rejected",
         originalDraft,
-        finalVersion: finalVersion ?? originalDraft,
-        editNotes: editNotes ?? null,
+        finalVersion: null,
+        editNotes: note.trim() || null,
         brief: brief ?? null,
       });
-      setSaved(outcome);
-      setShowEdit(false);
-      toast({ title: "Thanks — feedback saved" });
+      setSaved(true);
+      setShowNote(false);
+      toast({ title: "Marked rubbish — the model will see this" });
     } catch (e) {
       toast({
         title: "Could not save feedback",
@@ -46,59 +49,48 @@ export function DraftFeedback({ mode, contactId, originalDraft, currentDraft, br
 
   if (saved) {
     return (
-      <p className="text-xs text-muted-foreground italic">
-        Feedback recorded ({saved.replace(/-/g, " ")}).
-      </p>
+      <p className="text-xs text-muted-foreground italic">Marked as rubbish. Thanks.</p>
+    );
+  }
+
+  if (!showNote) {
+    return (
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => setShowNote(true)}
+        className="text-xs text-muted-foreground underline-offset-2 hover:underline hover:text-orange disabled:opacity-50"
+      >
+        This one was rubbish
+      </button>
     );
   }
 
   return (
-    <div className="space-y-2 pt-1">
-      <p className="text-xs text-muted-foreground">How did this draft land?</p>
-      <div className="flex flex-wrap gap-3 text-xs">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => save("sent-as-written", currentDraft)}
-          className="text-muted-foreground underline-offset-2 hover:underline hover:text-foreground disabled:opacity-50"
-        >
-          Sent as written
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => setShowEdit(true)}
-          className="text-muted-foreground underline-offset-2 hover:underline hover:text-foreground disabled:opacity-50"
-        >
-          Edited before sending
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => save("rejected")}
-          className="text-muted-foreground underline-offset-2 hover:underline hover:text-foreground disabled:opacity-50"
-        >
-          Did not use
-        </button>
-      </div>
-      {showEdit && (
-        <div className="flex gap-2 items-center pt-1">
-          <Input
-            placeholder="What did you change?"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="text-sm h-8"
-          />
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => save("edited-and-sent", currentDraft, notes.trim() || null)}
-            className="text-xs text-teal underline-offset-2 hover:underline disabled:opacity-50"
-          >
-            Save
-          </button>
-        </div>
-      )}
+    <div className="flex flex-wrap gap-2 items-center pt-1">
+      <Input
+        placeholder="Why? (optional, e.g. 'wrong tone', 'made stuff up')"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        className="text-sm h-8 flex-1 min-w-[200px]"
+        autoFocus
+      />
+      <button
+        type="button"
+        disabled={busy}
+        onClick={markRubbish}
+        className="text-xs text-orange underline-offset-2 hover:underline disabled:opacity-50"
+      >
+        Save
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => { setShowNote(false); setNote(""); }}
+        className="text-xs text-muted-foreground underline-offset-2 hover:underline disabled:opacity-50"
+      >
+        Cancel
+      </button>
     </div>
   );
 }

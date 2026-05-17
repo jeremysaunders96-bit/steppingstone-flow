@@ -414,7 +414,6 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
               mode="single"
               contactId={contact?.id ?? null}
               originalDraft={originalDraft}
-              currentDraft={draft}
               brief={briefForFeedback}
             />
           </div>

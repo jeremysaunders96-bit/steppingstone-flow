@@ -89,7 +89,6 @@ export function DraftIntroEmailModal({
                 mode="intro"
                 contactId={first?.id ?? null}
                 originalDraft={originalDraft}
-                currentDraft={draft}
                 brief={reason}
               />
             </div>
