@@ -1,7 +1,7 @@
 import { supabase, type LinkedInPost } from "@/lib/supabase";
 
 export type LinkedInTopic = "sector" | "deal" | "network" | "cultural" | "other";
-export type LinkedInDraftType = "paired" | "reshare";
+export type LinkedInDraftType = "paired" | "reshare" | "personal_standalone";
 
 export const TOPIC_LABELS: Record<LinkedInTopic, string> = {
   sector: "Investment trust sector",
@@ -35,7 +35,11 @@ export interface ReshareResult {
   type: "reshare";
   commentary: string;
 }
-export type GenerateResult = PairedResult | ReshareResult;
+export interface StandaloneResult {
+  type: "personal_standalone";
+  body: string;
+}
+export type GenerateResult = PairedResult | ReshareResult | StandaloneResult;
 
 export async function generateLinkedInDraft(input: GenerateInput): Promise<GenerateResult> {
   const { data, error } = await supabase.functions.invoke("linkedin-draft", { body: input });
@@ -49,8 +53,13 @@ export async function generateLinkedInDraft(input: GenerateInput): Promise<Gener
     if (!r.company_body || !r.personal_commentary) throw new Error("Malformed paired response");
     return r;
   }
-  const r = result as ReshareResult;
-  if (!r.commentary) throw new Error("Malformed reshare response");
+  if (input.type === "reshare") {
+    const r = result as ReshareResult;
+    if (!r.commentary) throw new Error("Malformed reshare response");
+    return r;
+  }
+  const r = result as StandaloneResult;
+  if (!r.body) throw new Error("Malformed standalone response");
   return r;
 }
 
@@ -61,12 +70,14 @@ export async function saveDraftRow(args: {
   trigger_source?: string;
   source_url?: string;
   brief: string;
-  body: string;                       // company_body for paired, commentary for reshare
+  body: string;                       // company_body (paired) / commentary (reshare) / post body (standalone)
   personal_commentary?: string;       // only set for paired
 }): Promise<LinkedInPostRow> {
+  const post_type = args.type === "reshare" ? "Reshare" : "Original";
+  const page = args.type === "paired" ? "Company page" : "Personal page";
   const row = {
-    post_type: args.type === "paired" ? "Original" : "Reshare",
-    page: args.type === "paired" ? "Company page" : "Personal page",
+    post_type,
+    page,
     body: args.body,
     personal_commentary: args.personal_commentary ?? null,
     status: "draft",
@@ -126,7 +137,8 @@ export async function approveDraft(args: {
     .eq("id", args.postId);
   if (updateErr) throw updateErr;
 
-  // Record feedback row.
+  // Record feedback row. personal_standalone re-uses the company_body columns for the
+  // post text — simpler than adding a third pair of columns.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: fbErr } = await (supabase.from("linkedin_draft_feedback") as any).insert(
     args.type === "paired"
@@ -142,16 +154,27 @@ export async function approveDraft(args: {
           trigger_source: args.trigger_source,
           brief: args.brief,
         }
-      : {
-          post_id: args.postId,
-          type: "reshare",
-          outcome,
-          original_reshare_commentary: args.originalBody,
-          final_reshare_commentary: args.finalBody,
-          topic: args.topic,
-          trigger_source: args.trigger_source,
-          brief: args.brief,
-        },
+      : args.type === "reshare"
+        ? {
+            post_id: args.postId,
+            type: "reshare",
+            outcome,
+            original_reshare_commentary: args.originalBody,
+            final_reshare_commentary: args.finalBody,
+            topic: args.topic,
+            trigger_source: args.trigger_source,
+            brief: args.brief,
+          }
+        : {
+            post_id: args.postId,
+            type: "personal_standalone",
+            outcome,
+            original_company_body: args.originalBody,
+            final_company_body: args.finalBody,
+            topic: args.topic,
+            trigger_source: args.trigger_source,
+            brief: args.brief,
+          },
   );
   if (fbErr) throw fbErr;
 }
@@ -187,16 +210,27 @@ export async function rejectDraft(args: {
           trigger_source: args.trigger_source,
           brief: args.brief,
         }
-      : {
-          post_id: args.postId,
-          type: "reshare",
-          outcome: "rejected",
-          original_reshare_commentary: args.body,
-          edit_notes: args.edit_notes,
-          topic: args.topic,
-          trigger_source: args.trigger_source,
-          brief: args.brief,
-        },
+      : args.type === "reshare"
+        ? {
+            post_id: args.postId,
+            type: "reshare",
+            outcome: "rejected",
+            original_reshare_commentary: args.body,
+            edit_notes: args.edit_notes,
+            topic: args.topic,
+            trigger_source: args.trigger_source,
+            brief: args.brief,
+          }
+        : {
+            post_id: args.postId,
+            type: "personal_standalone",
+            outcome: "rejected",
+            original_company_body: args.body,
+            edit_notes: args.edit_notes,
+            topic: args.topic,
+            trigger_source: args.trigger_source,
+            brief: args.brief,
+          },
   );
   if (fbErr) throw fbErr;
 }

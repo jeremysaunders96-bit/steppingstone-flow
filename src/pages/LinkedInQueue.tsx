@@ -31,15 +31,22 @@ function topicBadge(topic: LinkedInTopic | null) {
 }
 
 function typeBadge(type: LinkedInDraftType) {
+  const label = type === "paired" ? "Paired" : type === "reshare" ? "Reshare" : "Personal";
   return (
     <span className="text-[11px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-muted text-ink/70">
-      {type === "paired" ? "Paired" : "Reshare"}
+      {label}
     </span>
   );
 }
 
+// Recovers the draft type from the stored row.
+// - Reshare post_type → reshare
+// - Original on Company page → paired
+// - Original on Personal page (no commentary) → personal_standalone
 function postType(p: LinkedInPostRow): LinkedInDraftType {
-  return p.post_type === "Reshare" ? "reshare" : "paired";
+  if (p.post_type === "Reshare") return "reshare";
+  if (p.page === "Personal page" && !p.personal_commentary) return "personal_standalone";
+  return "paired";
 }
 
 export default function LinkedInQueue() {
@@ -211,9 +218,12 @@ function DraftCard({ row, onChange }: { row: LinkedInPostRow; onChange: () => vo
           body: result.company_body,
           personal_commentary: result.personal_commentary,
         });
-      } else {
+      } else if (result.type === "reshare") {
         setBody(result.commentary);
         await fetchSupabaseUpdate(row.id, { body: result.commentary });
+      } else {
+        setBody(result.body);
+        await fetchSupabaseUpdate(row.id, { body: result.body });
       }
       toast.success("Regenerated");
       setRegenOpen(false);
@@ -271,7 +281,7 @@ function DraftCard({ row, onChange }: { row: LinkedInPostRow; onChange: () => vo
             />
           </div>
         </>
-      ) : (
+      ) : type === "reshare" ? (
         <>
           {row.source_url && (
             <a
@@ -285,7 +295,7 @@ function DraftCard({ row, onChange }: { row: LinkedInPostRow; onChange: () => vo
           )}
           <div>
             <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-              Your commentary (1-3 sentences to add when resharing)
+              Your commentary (to add when resharing)
             </Label>
             <Textarea
               value={body}
@@ -295,6 +305,18 @@ function DraftCard({ row, onChange }: { row: LinkedInPostRow; onChange: () => vo
             />
           </div>
         </>
+      ) : (
+        <div>
+          <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+            Personal-page post (just you, no Steppingstone version)
+          </Label>
+          <Textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={6}
+            className="mt-1 font-sans text-sm"
+          />
+        </div>
       )}
 
       <div className="flex flex-wrap gap-2 pt-1">
@@ -429,7 +451,7 @@ function ApprovedCard({ row, onChange }: { row: LinkedInPostRow; onChange: () =>
             </Button>
           </div>
         </>
-      ) : (
+      ) : type === "reshare" ? (
         <>
           {row.source_url && (
             <a href={row.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center text-xs text-teal hover:underline">
@@ -440,6 +462,19 @@ function ApprovedCard({ row, onChange }: { row: LinkedInPostRow; onChange: () =>
           <div className="flex flex-wrap gap-2 pt-1">
             <Button size="sm" variant="outline" onClick={() => copy(row.body, "Commentary")}>
               <Copy className="h-3.5 w-3.5 mr-1" /> Copy commentary
+            </Button>
+            <Button size="sm" className="bg-teal text-white hover:bg-teal/90" disabled={busy} onClick={onMarkPosted}>
+              {busy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+              Mark posted
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-sm whitespace-pre-wrap">{row.body}</p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button size="sm" variant="outline" onClick={() => copy(row.body, "Post")}>
+              <Copy className="h-3.5 w-3.5 mr-1" /> Copy post
             </Button>
             <Button size="sm" className="bg-teal text-white hover:bg-teal/90" disabled={busy} onClick={onMarkPosted}>
               {busy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
@@ -543,7 +578,7 @@ function GenerateModal({
           body: result.company_body,
           personal_commentary: result.personal_commentary,
         });
-      } else {
+      } else if (result.type === "reshare") {
         await saveDraftRow({
           type: "reshare",
           topic,
@@ -551,6 +586,14 @@ function GenerateModal({
           source_url: sourceUrl.trim() || undefined,
           brief: brief.trim(),
           body: result.commentary,
+        });
+      } else {
+        await saveDraftRow({
+          type: "personal_standalone",
+          topic,
+          trigger_source: trigger.trim() || undefined,
+          brief: brief.trim(),
+          body: result.body,
         });
       }
       toast.success("Draft saved to the queue");
@@ -573,7 +616,7 @@ function GenerateModal({
         <div className="space-y-4">
           <div>
             <Label>Type</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
               <button
                 type="button"
                 onClick={() => setType("paired")}
@@ -583,7 +626,7 @@ function GenerateModal({
               >
                 <div className="text-sm font-medium">Paired</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  Company page post + your personal reshare commentary
+                  Steppingstone company post + your personal reshare commentary
                 </div>
               </button>
               <button
@@ -595,7 +638,19 @@ function GenerateModal({
               >
                 <div className="text-sm font-medium">Reshare</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  1-3 sentences of commentary to add when resharing someone else's post
+                  Commentary to add when resharing someone else's post
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setType("personal_standalone")}
+                className={`text-left rounded-md border-2 p-3 transition-colors ${
+                  type === "personal_standalone" ? "border-teal bg-teal/5" : "border-transparent bg-muted/50"
+                }`}
+              >
+                <div className="text-sm font-medium">Personal-only</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Single post on your personal page (cultural recs, personal commentary)
                 </div>
               </button>
             </div>
@@ -644,7 +699,9 @@ function GenerateModal({
               placeholder={
                 type === "paired"
                   ? "Free-form. The point you want to make, the angle, the specific names or numbers. The system drafts both the company post and your personal reshare from this."
-                  : "Free-form. Your take on the original post. The position you want to add. 1-3 sentences worth of substance."
+                  : type === "reshare"
+                    ? "Free-form. Your take on the original post. The position you want to add. Usually 1-3 sentences worth of substance, longer if the topic warrants it."
+                    : "Free-form. What you want to say. Cultural rec? Just the name + a line of reaction. Personal commentary? The point and the angle."
               }
               className="mt-1 font-sans text-sm"
             />
