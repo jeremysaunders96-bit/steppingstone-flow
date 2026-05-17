@@ -78,7 +78,7 @@ export async function saveDraftRow(args: {
   const row = {
     post_type,
     page,
-    body: args.body,
+    body_text: args.body,
     personal_commentary: args.personal_commentary ?? null,
     status: "draft",
     topic: args.topic,
@@ -133,7 +133,7 @@ export async function approveDraft(args: {
   // Update the post with the edited content + mark approved.
   const { error: updateErr } = await supabase
     .from("linkedin_posts")
-    .update({ status: "approved", body: args.finalBody, personal_commentary: args.finalPersonalCommentary })
+    .update({ status: "approved", body_text: args.finalBody, personal_commentary: args.finalPersonalCommentary })
     .eq("id", args.postId);
   if (updateErr) throw updateErr;
 

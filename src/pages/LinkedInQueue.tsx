@@ -381,7 +381,7 @@ function DraftsSection({
 
 function DraftCard({ row, onChange }: { row: LinkedInPostRow; onChange: () => void }) {
   const type = postType(row);
-  const [body, setBody] = useState(row.body);
+  const [body, setBody] = useState(row.body_text);
   const [personal, setPersonal] = useState(row.personal_commentary ?? "");
   const [busy, setBusy] = useState<"approve" | "reject" | "regenerate" | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -394,7 +394,7 @@ function DraftCard({ row, onChange }: { row: LinkedInPostRow; onChange: () => vo
     try {
       await approveDraft({
         postId: row.id,
-        originalBody: row.body,
+        originalBody: row.body_text,
         originalPersonalCommentary: row.personal_commentary ?? null,
         finalBody: body,
         finalPersonalCommentary: type === "paired" ? personal : null,
@@ -421,7 +421,7 @@ function DraftCard({ row, onChange }: { row: LinkedInPostRow; onChange: () => vo
         topic: row.topic,
         trigger_source: row.trigger_source,
         brief: row.trigger_source,
-        body: row.body,
+        body: row.body_text,
         personal_commentary: row.personal_commentary ?? null,
         edit_notes: rejectNote.trim() || null,
       });
@@ -455,15 +455,15 @@ function DraftCard({ row, onChange }: { row: LinkedInPostRow; onChange: () => vo
         setBody(result.company_body);
         setPersonal(result.personal_commentary);
         await fetchSupabaseUpdate(row.id, {
-          body: result.company_body,
+          body_text: result.company_body,
           personal_commentary: result.personal_commentary,
         });
       } else if (result.type === "reshare") {
         setBody(result.commentary);
-        await fetchSupabaseUpdate(row.id, { body: result.commentary });
+        await fetchSupabaseUpdate(row.id, { body_text: result.commentary });
       } else {
         setBody(result.body);
-        await fetchSupabaseUpdate(row.id, { body: result.body });
+        await fetchSupabaseUpdate(row.id, { body_text: result.body });
       }
       toast.success("Regenerated");
       setRegenOpen(false);
@@ -668,7 +668,7 @@ function ApprovedCard({ row, onChange }: { row: LinkedInPostRow; onChange: () =>
         <>
           <div>
             <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Company post</div>
-            <p className="text-sm whitespace-pre-wrap">{row.body}</p>
+            <p className="text-sm whitespace-pre-wrap">{row.body_text}</p>
           </div>
           {row.personal_commentary && (
             <div className="pl-4 border-l-2 border-orange">
@@ -677,7 +677,7 @@ function ApprovedCard({ row, onChange }: { row: LinkedInPostRow; onChange: () =>
             </div>
           )}
           <div className="flex flex-wrap gap-2 pt-1">
-            <Button size="sm" variant="outline" onClick={() => copy(row.body, "Company post")}>
+            <Button size="sm" variant="outline" onClick={() => copy(row.body_text, "Company post")}>
               <Copy className="h-3.5 w-3.5 mr-1" /> Copy company post
             </Button>
             {row.personal_commentary && (
@@ -698,9 +698,9 @@ function ApprovedCard({ row, onChange }: { row: LinkedInPostRow; onChange: () =>
               <ExternalLink className="h-3 w-3 mr-1" /> Source post
             </a>
           )}
-          <p className="text-sm whitespace-pre-wrap">{row.body}</p>
+          <p className="text-sm whitespace-pre-wrap">{row.body_text}</p>
           <div className="flex flex-wrap gap-2 pt-1">
-            <Button size="sm" variant="outline" onClick={() => copy(row.body, "Commentary")}>
+            <Button size="sm" variant="outline" onClick={() => copy(row.body_text, "Commentary")}>
               <Copy className="h-3.5 w-3.5 mr-1" /> Copy commentary
             </Button>
             <Button size="sm" className="bg-teal text-white hover:bg-teal/90" disabled={busy} onClick={onMarkPosted}>
@@ -711,9 +711,9 @@ function ApprovedCard({ row, onChange }: { row: LinkedInPostRow; onChange: () =>
         </>
       ) : (
         <>
-          <p className="text-sm whitespace-pre-wrap">{row.body}</p>
+          <p className="text-sm whitespace-pre-wrap">{row.body_text}</p>
           <div className="flex flex-wrap gap-2 pt-1">
-            <Button size="sm" variant="outline" onClick={() => copy(row.body, "Post")}>
+            <Button size="sm" variant="outline" onClick={() => copy(row.body_text, "Post")}>
               <Copy className="h-3.5 w-3.5 mr-1" /> Copy post
             </Button>
             <Button size="sm" className="bg-teal text-white hover:bg-teal/90" disabled={busy} onClick={onMarkPosted}>
@@ -747,7 +747,7 @@ function PostedSection({ rows }: { rows: LinkedInPostRow[] }) {
                 </span>
               )}
             </div>
-            <p className="text-sm text-ink/85 line-clamp-3 whitespace-pre-wrap">{r.body}</p>
+            <p className="text-sm text-ink/85 line-clamp-3 whitespace-pre-wrap">{r.body_text}</p>
             <div className="flex flex-wrap gap-2 mt-3 text-xs">
               {r.reactions != null && <Stat label="Reactions" value={r.reactions} />}
               {r.comments != null && <Stat label="Comments" value={r.comments} />}

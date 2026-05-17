@@ -120,7 +120,7 @@ export interface LinkedInPost {
   id: string;
   post_type: LinkedInType;
   page: LinkedInPage;
-  body: string;
+  body_text: string;
   personal_commentary: string | null;
   status: LinkedInStatus;
   posted_at: string | null;
