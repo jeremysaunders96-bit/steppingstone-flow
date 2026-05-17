@@ -96,6 +96,8 @@ function buildSignOff(register: string): string {
 interface FeedbackContext {
   contactSpecific: Array<{ outcome: string; edit_notes: string | null }>;
   recentEdited: Array<{ edit_notes: string | null }>;
+  // Most recent dictation drafts Will actually edited. Empty until enough history accrues.
+  dictationExamples: Array<{ original: string; final: string }>;
 }
 
 function buildTemplateUserMessage(body: RequestBody, template: EmailTemplate, fb: FeedbackContext): string {
@@ -194,6 +196,26 @@ function buildDictationUserMessage(body: RequestBody, fb: FeedbackContext): stri
   if (fb.contactSpecific.length > 0) {
     const lines = fb.contactSpecific.map((r) => `- ${r.outcome}${r.edit_notes ? `: ${r.edit_notes}` : ""}`).join("\n");
     parts.push("", `PREVIOUS FEEDBACK FOR THIS CONTACT - APPLY THESE LEARNINGS:`, lines);
+  }
+
+  if (fb.dictationExamples.length > 0) {
+    parts.push(
+      "",
+      `RECENT DICTATION EDITS - HOW WILL ACTUALLY RESHAPES YOUR OUTPUT:`,
+      `Below are real BEFORE/AFTER pairs where you drafted from one of Will's dictations, and he then edited the draft before sending. Study them. The AFTER is what Will considered correct. Don't copy phrasing wholesale, but DO mirror the cadence, length, structure, sign-off patterns, and ways he prunes or rewords.`,
+      "",
+    );
+    fb.dictationExamples.forEach((ex, i) => {
+      parts.push(
+        `─── Example ${i + 1} ───`,
+        `BEFORE (your earlier draft):`,
+        ex.original,
+        "",
+        `AFTER (what Will sent):`,
+        ex.final,
+        "",
+      );
+    });
   }
 
   return parts.filter(Boolean).join("\n");
@@ -382,6 +404,26 @@ Deno.serve(async (req) => {
       .filter((r) => !contactIds.includes(r.contact_id ?? ""))
       .map((r) => ({ edit_notes: r.edit_notes }));
 
+    // Pull recent BEFORE/AFTER pairs from dictation drafts Will actually edited.
+    // Template-mode feedback has a brief like "[stepping-stone] xxx" — we exclude those
+    // by requiring brief to not start with "[", so dictation patterns don't get polluted.
+    let dictationExamples: Array<{ original: string; final: string }> = [];
+    if (body.mode === "dictation") {
+      const { data: dictExData } = await sb
+        .from("draft_feedback")
+        .select("original_draft, final_version, brief")
+        .eq("outcome", "edited-and-sent")
+        .not("final_version", "is", null)
+        .not("brief", "like", "[%")
+        .order("created_at", { ascending: false })
+        .limit(12);
+      dictationExamples = ((dictExData ?? []) as Array<{ original_draft: string | null; final_version: string | null; brief: string | null }>)
+        .map((r) => ({ original: (r.original_draft ?? "").trim(), final: (r.final_version ?? "").trim() }))
+        .filter((r) => r.original && r.final && r.original !== r.final)
+        .slice(0, 5);
+      dlog("dictation examples loaded", { count: dictationExamples.length });
+    }
+
     if (body.templateType && body.mode === "single" && !template) {
       return new Response(
         JSON.stringify({
@@ -395,13 +437,13 @@ Deno.serve(async (req) => {
     let branch: "dictation" | "template" | "general";
     if (body.mode === "dictation") {
       branch = "dictation";
-      userMessage = buildDictationUserMessage(body, { contactSpecific, recentEdited });
+      userMessage = buildDictationUserMessage(body, { contactSpecific, recentEdited, dictationExamples });
     } else if (template) {
       branch = "template";
-      userMessage = buildTemplateUserMessage(body, template, { contactSpecific, recentEdited });
+      userMessage = buildTemplateUserMessage(body, template, { contactSpecific, recentEdited, dictationExamples });
     } else {
       branch = "general";
-      userMessage = buildGeneralUserMessage(body, { contactSpecific, recentEdited });
+      userMessage = buildGeneralUserMessage(body, { contactSpecific, recentEdited, dictationExamples });
     }
     dlog("prompt branch chosen", {
       branch,
