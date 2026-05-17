@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.gmail-import-contacts]
 verify_jwt = false
+
+[functions.linkedin-draft]
+verify_jwt = false
