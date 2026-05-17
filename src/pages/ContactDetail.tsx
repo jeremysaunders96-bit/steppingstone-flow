@@ -360,7 +360,7 @@ export default function ContactDetail() {
         )}
       </section>
 
-      <ComposeEmailModal open={draft} onOpenChange={setDraft} lockedContact={c} />
+      <ComposeEmailModal open={draft} onOpenChange={setDraft} lockedContact={c} dictateOnly />
       <DraftIntroEmailModal open={intro} onOpenChange={setIntro} firstContact={c} />
       <AddNoteModal
         open={note}

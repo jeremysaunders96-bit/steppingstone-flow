@@ -18,6 +18,9 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   lockedContact?: Contact | null;
+  // When true, hide the template tab entirely and offer only the dictate flow.
+  // Used by contact-specific entry points where Will is composing to a known person.
+  dictateOnly?: boolean;
 }
 
 type TemplateType = "stepping-stone" | "stepping-stone-long" | "curation" | "waymap" | "richard-noble" | "newsletter";
@@ -47,8 +50,8 @@ function getRecognition(): any | null {
   return Ctor ? new Ctor() : null;
 }
 
-export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) {
-  const [tab, setTab] = useState<"template" | "dictate">("dictate");
+export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOnly = false }: Props) {
+  const [tab, setTab] = useState<"template" | "dictate">(dictateOnly ? "dictate" : "template");
   const [contact, setContact] = useState<Contact | null>(lockedContact ?? null);
   const [template, setTemplate] = useState<TemplateType | null>(null);
   const [personalisation, setPersonalisation] = useState("");
@@ -90,7 +93,7 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
   }, [open, fromAccount]);
 
   const reset = () => {
-    setTab("dictate");
+    setTab(dictateOnly ? "dictate" : "template");
     setTemplate(null);
     setPersonalisation("");
     setTranscript("");
@@ -245,14 +248,16 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display text-teal">Compose email</DialogTitle>
+          <DialogTitle className="font-display text-teal">{dictateOnly ? "Dictate email" : "Compose email"}</DialogTitle>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as "template" | "dictate")}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="template">Use a template</TabsTrigger>
-            <TabsTrigger value="dictate">Dictate from scratch</TabsTrigger>
-          </TabsList>
+          {!dictateOnly && (
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="template">Use a template</TabsTrigger>
+              <TabsTrigger value="dictate">Dictate from scratch</TabsTrigger>
+            </TabsList>
+          )}
 
           <TabsContent value="template" className="space-y-3">
             <div className="grid grid-cols-2 gap-2 pt-2">
