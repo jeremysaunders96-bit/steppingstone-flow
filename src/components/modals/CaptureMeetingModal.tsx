@@ -6,16 +6,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mic, Loader2, X, Plus, RefreshCw } from "lucide-react";
+import { Mic, Loader2, X, Plus, RefreshCw, CalendarPlus, CheckCircle2 } from "lucide-react";
 import { ContactPicker } from "@/components/ContactPicker";
 import { DealPicker } from "@/components/DealPicker";
 import { AddContactModal } from "@/components/modals/AddContactModal";
 import { supabase, type Contact, type Deal } from "@/lib/supabase";
+import { listConnectedAccounts, type GoogleAccountRow } from "@/lib/googleAccounts";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 type Step = "record" | "review";
 type MeetingType = "meeting" | "call" | "other";
+
+interface SuggestedEvent {
+  summary: string;
+  description: string | null;
+  location: string | null;
+  suggested_start: string;
+  suggested_end: string;
+  all_day: boolean;
+  confidence: "high" | "medium" | "low";
+}
 
 interface Extraction {
   contact_name: string | null;
@@ -23,6 +34,7 @@ interface Extraction {
   key_points: string[];
   action_items: string[];
   additional_notes: string | null;
+  calendar_events?: SuggestedEvent[];
 }
 
 function getRecognition(): any | null {
@@ -97,9 +109,59 @@ export function CaptureMeetingModal({
 
   const [saving, setSaving] = useState(false);
 
+  // Calendar suggestions
+  const [connectedAccounts, setConnectedAccounts] = useState<GoogleAccountRow[]>([]);
+  const [targetAccount, setTargetAccount] = useState<string>("");
+  const [addingEventIdx, setAddingEventIdx] = useState<number | null>(null);
+  const [addedEventIds, setAddedEventIds] = useState<Set<number>>(new Set());
+
   useEffect(() => {
     setSupported(speechSupported());
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    listConnectedAccounts()
+      .then((rows) => {
+        setConnectedAccounts(rows);
+        if (rows.length && !targetAccount) {
+          // Prefer the work account.
+          const work = rows.find((r) => r.account_email.endsWith("@sstone.co.uk"));
+          setTargetAccount((work ?? rows[0]).account_email);
+        }
+      })
+      .catch(() => { /* silent — visible from Settings */ });
+  }, [open, targetAccount]);
+
+  const addEventToCalendar = async (idx: number, ev: SuggestedEvent) => {
+    if (!targetAccount) {
+      toast.error("Connect a Google Calendar in Settings first.");
+      return;
+    }
+    setAddingEventIdx(idx);
+    try {
+      const { data, error } = await supabase.functions.invoke("gcal-create-event", {
+        body: {
+          account_email: targetAccount,
+          summary: ev.summary,
+          description: ev.description ?? undefined,
+          location: ev.location ?? undefined,
+          start: ev.suggested_start,
+          end: ev.suggested_end,
+          all_day: ev.all_day,
+        },
+      });
+      if (error) throw error;
+      const result = data as { ok: boolean; event_id?: string; html_link?: string; error?: string; detail?: string };
+      if (!result.ok) throw new Error(result.detail || result.error || "Calendar create failed");
+      setAddedEventIds((s) => new Set(s).add(idx));
+      toast.success(`Added to ${targetAccount}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't add event");
+    } finally {
+      setAddingEventIdx(null);
+    }
+  };
 
   // Reset everything when the modal opens fresh
   useEffect(() => {
@@ -109,6 +171,8 @@ export function CaptureMeetingModal({
       setSeconds(0);
       setExtraction(null);
       setExtractError(null);
+      setAddedEventIds(new Set());
+      setAddingEventIdx(null);
       setPrimaryContact(null);
       setExtraContacts([]);
       setLinkedDeal(null);
@@ -582,6 +646,74 @@ export function CaptureMeetingModal({
                           <div>
                             <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Notes</div>
                             <div className="italic">{extraction.additional_notes}</div>
+                          </div>
+                        )}
+                        {extraction.calendar_events && extraction.calendar_events.length > 0 && (
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                                Add to calendar?
+                              </div>
+                              {connectedAccounts.length > 1 && (
+                                <Select value={targetAccount} onValueChange={setTargetAccount}>
+                                  <SelectTrigger className="h-7 text-xs w-[200px]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {connectedAccounts.map((a) => (
+                                      <SelectItem key={a.account_email} value={a.account_email}>
+                                        {a.account_email}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              {extraction.calendar_events.map((ev, idx) => {
+                                const added = addedEventIds.has(idx);
+                                const adding = addingEventIdx === idx;
+                                const startLabel = ev.all_day
+                                  ? new Date(ev.suggested_start).toLocaleDateString("en-GB", {
+                                      weekday: "short", day: "numeric", month: "short",
+                                    })
+                                  : new Date(ev.suggested_start).toLocaleString("en-GB", {
+                                      weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                                    });
+                                return (
+                                  <div key={idx} className="flex items-start gap-2 rounded-md border p-2">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium text-sm truncate">{ev.summary}</div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {startLabel}
+                                        {ev.location ? ` · ${ev.location}` : ""}
+                                        {ev.confidence !== "high" ? ` · ${ev.confidence} confidence` : ""}
+                                      </div>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant={added ? "ghost" : "outline"}
+                                      disabled={added || adding || connectedAccounts.length === 0}
+                                      onClick={() => addEventToCalendar(idx, ev)}
+                                    >
+                                      {added ? (
+                                        <><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Added</>
+                                      ) : adding ? (
+                                        <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Adding</>
+                                      ) : (
+                                        <><CalendarPlus className="h-3.5 w-3.5 mr-1" /> Add</>
+                                      )}
+                                    </Button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {connectedAccounts.length === 0 && (
+                              <div className="text-xs italic text-muted-foreground mt-1">
+                                Connect a Google Calendar in Settings to enable.
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

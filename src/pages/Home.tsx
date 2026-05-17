@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { CalendarDays, Copy } from "lucide-react";
+import { Copy } from "lucide-react";
 import { supabase, type Contact, type Interaction, type Deal } from "@/lib/supabase";
 import { formatShortDate, daysSince } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { DraftEmailModal } from "@/components/modals/DraftEmailModal";
 import { ActionItemList } from "@/components/ActionItemList";
 import { HomeActionItems } from "@/components/HomeActionItems";
+import { TodayMeetingsCard } from "@/components/TodayMeetingsCard";
 import { useToast } from "@/hooks/use-toast";
 
 const BIO_TEXT = "William Meadon, a chartered accountant, joined Schroders in the late 1980s as a balanced pension fund manager. He then joined Newton Investment Management, where the firm's funds under management increased tenfold during his tenure. In 1996, he joined Flemings, which J.P. Morgan later acquired. During his 28 years at J.P. Morgan, William lead the firm's Core Team where he managed a range of UK, European, and global long-only funds, including several investment trusts such as JPM Claverhouse. In 2024, he left J.P. Morgan to found Steppingstone, a one-stop-shop to help UK businesses grow through its network of fractional experts and advisors.";
@@ -245,13 +246,7 @@ export default function Home() {
       {/* Today */}
       <section>
         <h2 className="font-display text-2xl text-teal mb-4">Today</h2>
-        <div className="card-soft py-12 px-6 flex flex-col items-center text-center gap-3">
-          <CalendarDays className="h-10 w-10 text-muted-foreground/60" strokeWidth={1.5} />
-          <p className="text-sm italic text-muted-foreground">Your calendar isn't connected yet.</p>
-          <Button className="bg-teal hover:bg-teal/90 text-white mt-1">
-            Connect Google Calendar
-          </Button>
-        </div>
+        <TodayMeetingsCard />
       </section>
 
       <HomeActionItems />

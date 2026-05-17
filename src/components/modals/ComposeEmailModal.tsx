@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader2, Copy, RefreshCcw, Mic, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ContactPicker } from "@/components/ContactPicker";
-import { type Contact } from "@/lib/supabase";
+import { type Contact, supabase } from "@/lib/supabase";
 import { generateDraft, fetchRecentInteractions, contactToBrief } from "@/lib/draftEmail";
 import { DraftFeedback } from "@/components/DraftFeedback";
+import { listConnectedAccounts, type GoogleAccountRow } from "@/lib/googleAccounts";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -53,7 +55,11 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
   const [transcript, setTranscript] = useState("");
   const [draft, setDraft] = useState("");
   const [originalDraft, setOriginalDraft] = useState("");
+  const [subject, setSubject] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [connectedAccounts, setConnectedAccounts] = useState<GoogleAccountRow[]>([]);
+  const [fromAccount, setFromAccount] = useState<string>("");
   const { toast } = useToast();
 
   // hold-to-record
@@ -73,6 +79,16 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
     if (open) setContact(lockedContact ?? null);
   }, [open, lockedContact]);
 
+  useEffect(() => {
+    if (!open) return;
+    listConnectedAccounts()
+      .then((rows) => {
+        setConnectedAccounts(rows);
+        if (rows.length && !fromAccount) setFromAccount(rows[0].account_email);
+      })
+      .catch(() => { /* silent — Settings page is where users handle this */ });
+  }, [open, fromAccount]);
+
   const reset = () => {
     setTab("template");
     setTemplate(null);
@@ -80,8 +96,55 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
     setTranscript("");
     setDraft("");
     setOriginalDraft("");
+    setSubject("");
     setLoading(false);
+    setSending(false);
     if (!lockedContact) setContact(null);
+  };
+
+  const sendToDrafts = async () => {
+    if (!contact?.email) {
+      toast({ title: "No recipient email on this contact", variant: "destructive" });
+      return;
+    }
+    if (!fromAccount) {
+      toast({
+        title: "Connect a Gmail account first",
+        description: "Go to Settings → Google integrations.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!subject.trim()) {
+      toast({ title: "Add a subject line", variant: "destructive" });
+      return;
+    }
+    setSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("gmail-create-draft", {
+        body: {
+          account_email: fromAccount,
+          to: contact.email,
+          subject: subject.trim(),
+          body: draft,
+        },
+      });
+      if (error) throw error;
+      const result = data as { ok: boolean; draft_id?: string; error?: string; detail?: string };
+      if (!result.ok) throw new Error(result.detail || result.error || "Unknown error");
+      toast({
+        title: "Draft saved to Gmail",
+        description: `Open Gmail Drafts in ${fromAccount} to send.`,
+      });
+    } catch (e) {
+      toast({
+        title: "Couldn't save draft",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setSending(false);
+    }
   };
 
   const startRecording = () => {
@@ -263,6 +326,34 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
 
         {draft && (
           <div className="space-y-2 pt-3 border-t mt-3">
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+              <div>
+                <Label>Subject</Label>
+                <Input
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="e.g. Introducing Will Meadon"
+                />
+              </div>
+              <div>
+                <Label>From</Label>
+                {connectedAccounts.length > 0 ? (
+                  <select
+                    value={fromAccount}
+                    onChange={(e) => setFromAccount(e.target.value)}
+                    className="h-10 rounded-md border bg-background px-3 text-sm w-full"
+                  >
+                    {connectedAccounts.map((a) => (
+                      <option key={a.account_email} value={a.account_email}>{a.account_email}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="h-10 flex items-center text-xs text-muted-foreground italic">
+                    No Gmail account connected
+                  </div>
+                )}
+              </div>
+            </div>
             <Label>Draft</Label>
             <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={14} className="font-sans text-sm" />
             <div className="flex gap-2">
@@ -277,9 +368,11 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => toast({ title: "Coming soon", description: "Will deploy with Gmail connection" })}
+                onClick={sendToDrafts}
+                disabled={sending || connectedAccounts.length === 0 || !contact?.email}
               >
-                <Send className="h-4 w-4 mr-1" /> Send to Gmail Drafts
+                {sending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
+                Send to Gmail Drafts
               </Button>
             </div>
             <DraftFeedback
