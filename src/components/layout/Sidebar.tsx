@@ -43,6 +43,16 @@ export function Sidebar({
           </Button>
         </div>
       )}
+      {onComposeClick && (
+        <div className="px-3 pb-3">
+          <Button
+            onClick={onComposeClick}
+            className="w-full bg-teal text-white border border-white/20 hover:bg-[hsl(195_42%_24%)] font-medium"
+          >
+            <Mail className="h-4 w-4 mr-2" /> Compose Email
+          </Button>
+        </div>
+      )}
       <nav className="flex-1 px-3">
         {items.map((it, i) => (
           <div key={it.to}>
@@ -84,16 +94,6 @@ export function Sidebar({
           </div>
         ))}
       </nav>
-      {onComposeClick && (
-        <div className="px-3 pt-3">
-          <Button
-            onClick={onComposeClick}
-            className="w-full bg-teal text-white border border-white/20 hover:bg-[hsl(195_42%_24%)] font-medium"
-          >
-            <Mail className="h-4 w-4 mr-2" /> Compose Email
-          </Button>
-        </div>
-      )}
       <div className="px-6 py-6 text-[11px] text-white/50">
         {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
       </div>
