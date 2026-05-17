@@ -319,6 +319,7 @@ Deno.serve(async (req) => {
       const { data: ctxRows } = await sb
         .from("system_context")
         .select("context_text")
+        .eq("kind", "email_voice")
         .order("updated_at", { ascending: false })
         .limit(1);
       if (ctxRows && ctxRows[0]?.context_text) {
