@@ -39,6 +39,28 @@ interface PersonalStandaloneResponse {
   body: string;
 }
 
+// Mechanical anti-AI-slop scrub. The bible handles tone via the SELF-CHECK
+// section in the system prompt; this catches the mechanical violations the
+// model occasionally lets slip even with explicit instructions.
+function stripAiSlop(text: string | null | undefined): string {
+  if (!text) return text ?? "";
+  return text
+    // em dash with surrounding whitespace → ", "
+    .replace(/\s*—\s*/g, ", ")
+    // en dash → "-"
+    .replace(/\s*–\s*/g, "-")
+    // strip hashtags entirely (Will doesn't use them)
+    .replace(/(^|\s)#[A-Za-z0-9_]+/g, "$1")
+    // collapse the double-commas / extra spaces produced by replacements
+    .replace(/,\s*,/g, ",")
+    .replace(/ {2,}/g, " ")
+    // tidy trailing whitespace per line
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
+    .trim();
+}
+
 function tryParseJson<T>(text: string): T | null {
   if (!text) return null;
   let s = text.trim();
@@ -352,8 +374,8 @@ Deno.serve(async (req) => {
       }
       return new Response(JSON.stringify({
         type: "paired",
-        company_body: parsed.company_body,
-        personal_commentary: parsed.personal_commentary,
+        company_body: stripAiSlop(parsed.company_body),
+        personal_commentary: stripAiSlop(parsed.personal_commentary),
         debug: debugPayload,
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -368,7 +390,7 @@ Deno.serve(async (req) => {
       }
       return new Response(JSON.stringify({
         type: "reshare",
-        commentary: parsed.commentary,
+        commentary: stripAiSlop(parsed.commentary),
         debug: debugPayload,
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -382,7 +404,7 @@ Deno.serve(async (req) => {
     }
     return new Response(JSON.stringify({
       type: "personal_standalone",
-      body: parsed.body,
+      body: stripAiSlop(parsed.body),
       debug: debugPayload,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 

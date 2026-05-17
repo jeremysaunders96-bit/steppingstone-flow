@@ -183,7 +183,7 @@ function NewsRadarSection({ onDraftFromItem }: { onDraftFromItem: (item: NewsIte
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [top, sv, when] = await Promise.all([fetchTopItems(12), fetchSavedItems(10), lastRefreshTime()]);
+      const [top, sv, when] = await Promise.all([fetchTopItems(4), fetchSavedItems(10), lastRefreshTime()]);
       setItems(top);
       setSaved(sv);
       setLastFetched(when);
