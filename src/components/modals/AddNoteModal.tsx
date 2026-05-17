@@ -11,10 +11,19 @@ import { ContactPicker } from "@/components/ContactPicker";
 import { toast } from "sonner";
 import { X, Plus } from "lucide-react";
 
-const TYPES: InteractionType[] = ["meeting","call","email","voice note","introduction made","note"];
+// Values match the DB's interactions_type_check constraint exactly.
+// Labels are the friendly display strings shown in the dropdown.
+const TYPES: Array<{ value: InteractionType; label: string }> = [
+  { value: "meeting", label: "Meeting" },
+  { value: "call", label: "Call" },
+  { value: "email", label: "Email" },
+  { value: "voice-note", label: "Voice note" },
+  { value: "intro-made", label: "Introduction made" },
+  { value: "other", label: "Other" },
+];
 
 // Remembers the last type Will picked, for the lifetime of this browser session.
-let lastType: InteractionType = "note";
+let lastType: InteractionType = "other";
 
 type LinkedContactOption = { id: string; full_name: string; company?: string | null };
 
@@ -162,7 +171,7 @@ export function AddNoteModal({
             <div><Label>Type</Label>
               <Select value={type} onValueChange={(v)=>setType(v as InteractionType)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                <SelectContent>{TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           </div>

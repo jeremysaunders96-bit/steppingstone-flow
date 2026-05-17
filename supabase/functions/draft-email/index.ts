@@ -405,20 +405,23 @@ Deno.serve(async (req) => {
       .filter((r) => !contactIds.includes(r.contact_id ?? ""))
       .map((r) => ({ edit_notes: r.edit_notes }));
 
-    // Pull recent BEFORE/AFTER pairs from dictation drafts Will actually edited.
-    // Template-mode feedback has a brief like "[stepping-stone] xxx" — we exclude those
-    // by requiring brief to not start with "[", so dictation patterns don't get polluted.
+    // Pull recent BEFORE/AFTER pairs from edited drafts. The reshaped
+    // draft_feedback table dropped brief, so we can no longer split template
+    // edits from dictation edits at query time — both share draft_type='email'.
+    // The model sees a mix; voice patterns Will applies are consistent enough
+    // across template and dictation that this still helps, and the bible plus
+    // SELF-CHECK keep the structural distinctions clean.
     let dictationExamples: Array<{ original: string; final: string }> = [];
     if (body.mode === "dictation") {
       const { data: dictExData } = await sb
         .from("draft_feedback")
-        .select("original_draft, final_version, brief")
+        .select("original_draft, final_version")
         .eq("outcome", "edited-and-sent")
+        .eq("draft_type", "email")
         .not("final_version", "is", null)
-        .not("brief", "like", "[%")
         .order("created_at", { ascending: false })
         .limit(12);
-      dictationExamples = ((dictExData ?? []) as Array<{ original_draft: string | null; final_version: string | null; brief: string | null }>)
+      dictationExamples = ((dictExData ?? []) as Array<{ original_draft: string | null; final_version: string | null }>)
         .map((r) => ({ original: (r.original_draft ?? "").trim(), final: (r.final_version ?? "").trim() }))
         .filter((r) => r.original && r.final && r.original !== r.final)
         .slice(0, 5);

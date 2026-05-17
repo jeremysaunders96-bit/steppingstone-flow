@@ -35,9 +35,9 @@ export type InteractionType =
   | "meeting"
   | "call"
   | "email"
-  | "voice note"
-  | "introduction made"
-  | "note";
+  | "voice-note"
+  | "intro-made"
+  | "other";
 
 export interface Interaction {
   id: string;
@@ -63,9 +63,7 @@ export interface ActionItem {
   created_at: string;
 }
 
-export type DealStage =
-  | "active" | "progressing" | "stalled" | "done"
-  | "introduced" | "led-somewhere" | "gone-cold";
+export type DealStage = "active" | "progressing" | "stalled" | "done";
 export type DealType =
   | "capital-raise"
   | "introduction-mandate"

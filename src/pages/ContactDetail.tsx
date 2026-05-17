@@ -186,7 +186,7 @@ export default function ContactDetail() {
               <div className="card-soft divide-y">
                 {hist.map(i => {
                   const open = !!expanded[i.id];
-                  const isVoice = i.type === "voice note";
+                  const isVoice = i.type === "voice-note";
                   return (
                     <div key={i.id} className="px-5 py-4">
                       <button onClick={()=>setExpanded(s => ({...s, [i.id]: !open}))} className="w-full text-left flex items-start gap-3">

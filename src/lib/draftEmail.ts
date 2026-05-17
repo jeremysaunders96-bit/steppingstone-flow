@@ -99,16 +99,19 @@ export async function saveDraftFeedback(args: {
   originalDraft: string;
   finalVersion?: string | null;
   editNotes?: string | null;
-  brief?: string | null;
+  brief?: string | null;        // kept on the signature for callers; not persisted now
 }): Promise<void> {
+  // The draft_feedback table was reshaped: uses draft_type
+  // (email / intro-email / linkedin-post) instead of mode, and brief is gone.
+  // Map our internal mode to the DB's draft_type.
+  const draft_type = args.mode === "intro" ? "intro-email" : "email";
   const row: Record<string, unknown> = {
     contact_id: args.contactId ?? null,
-    mode: args.mode,
+    draft_type,
     outcome: args.outcome,
     original_draft: args.originalDraft,
     final_version: args.finalVersion ?? args.originalDraft,
     edit_notes: args.editNotes ?? null,
-    brief: args.brief ?? null,
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase.from("draft_feedback") as any).insert(row);
