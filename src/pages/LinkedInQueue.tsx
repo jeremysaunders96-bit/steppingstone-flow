@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, Copy, ExternalLink, Loader2, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
+import { Bookmark, Check, Copy, ExternalLink, Loader2, Newspaper, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   TOPIC_LABELS,
@@ -20,6 +20,14 @@ import {
   rejectDraft,
   saveDraftRow,
 } from "@/lib/linkedin";
+import {
+  type NewsItem,
+  fetchTopItems,
+  fetchSavedItems,
+  lastRefreshTime,
+  refreshNews,
+  setItemStatus,
+} from "@/lib/newsRadar";
 
 function topicBadge(topic: LinkedInTopic | null) {
   if (!topic) return null;
@@ -49,12 +57,37 @@ function postType(p: LinkedInPostRow): LinkedInDraftType {
   return "paired";
 }
 
+interface GenerateInitialValues {
+  type?: LinkedInDraftType;
+  topic?: LinkedInTopic;
+  trigger?: string;
+  sourceUrl?: string;
+  brief?: string;
+}
+interface GenerateOpener {
+  values: GenerateInitialValues;
+  fromNewsItemId?: string;
+}
+
+function formatRelative(iso: string | null): string {
+  if (!iso) return "never";
+  const ms = Date.now() - new Date(iso).getTime();
+  const m = Math.round(ms / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.round(h / 24);
+  return `${d} d ago`;
+}
+
 export default function LinkedInQueue() {
   const [drafts, setDrafts] = useState<LinkedInPostRow[]>([]);
   const [approvedPending, setApprovedPending] = useState<LinkedInPostRow[]>([]);
   const [posted, setPosted] = useState<LinkedInPostRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [generateOpen, setGenerateOpen] = useState(false);
+  const [generateOpener, setGenerateOpener] = useState<GenerateOpener | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,11 +119,34 @@ export default function LinkedInQueue() {
         </div>
         <Button
           className="bg-teal hover:bg-teal/90 text-white"
-          onClick={() => setGenerateOpen(true)}
+          onClick={() => { setGenerateOpener(null); setGenerateOpen(true); }}
         >
           <Sparkles className="h-4 w-4 mr-2" /> Generate new post
         </Button>
       </header>
+
+      <NewsRadarSection
+        onDraftFromItem={(item) => {
+          const isReshare = (item.url || "").includes("linkedin.com");
+          setGenerateOpener({
+            values: {
+              type: isReshare ? "reshare" : "paired",
+              topic: item.topic_match ?? "sector",
+              trigger: item.source_name
+                ? `${item.source_name}: ${item.title}`.slice(0, 200)
+                : item.title.slice(0, 200),
+              sourceUrl: isReshare ? item.url : undefined,
+              brief: [
+                item.title,
+                item.snippet ?? "",
+                item.relevance_reasoning ? `\nWhy this matters: ${item.relevance_reasoning}` : "",
+              ].filter(Boolean).join("\n\n"),
+            },
+            fromNewsItemId: item.id,
+          });
+          setGenerateOpen(true);
+        }}
+      />
 
       <DraftsSection drafts={drafts} loading={loading} onChange={load} />
       <ApprovedSection rows={approvedPending} onChange={load} />
@@ -99,9 +155,193 @@ export default function LinkedInQueue() {
       <GenerateModal
         open={generateOpen}
         onOpenChange={setGenerateOpen}
-        onCreated={() => { setGenerateOpen(false); load(); }}
+        initialValues={generateOpener?.values}
+        onCreated={async () => {
+          if (generateOpener?.fromNewsItemId) {
+            try { await setItemStatus(generateOpener.fromNewsItemId, "drafted"); } catch { /* ignore */ }
+          }
+          setGenerateOpener(null);
+          setGenerateOpen(false);
+          load();
+        }}
       />
     </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// News radar — sector RSS sources scored by Claude. Sits at the top of /linkedin.
+// -----------------------------------------------------------------------------
+function NewsRadarSection({ onDraftFromItem }: { onDraftFromItem: (item: NewsItem) => void }) {
+  const [items, setItems] = useState<NewsItem[]>([]);
+  const [saved, setSaved] = useState<NewsItem[]>([]);
+  const [lastFetched, setLastFetched] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [top, sv, when] = await Promise.all([fetchTopItems(12), fetchSavedItems(10), lastRefreshTime()]);
+      setItems(top);
+      setSaved(sv);
+      setLastFetched(when);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const result = await refreshNews();
+      const newCount = result.new_items ?? 0;
+      const errorCount = result.errors?.length ?? 0;
+      toast.success(
+        `${newCount} new item${newCount === 1 ? "" : "s"} pulled`
+          + (errorCount > 0 ? ` (${errorCount} source${errorCount === 1 ? "" : "s"} errored)` : ""),
+      );
+      await load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const onDismiss = async (id: string) => {
+    try {
+      await setItemStatus(id, "dismissed");
+      setItems((arr) => arr.filter((x) => x.id !== id));
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const onSave = async (id: string) => {
+    try {
+      await setItemStatus(id, "saved");
+      setItems((arr) => arr.filter((x) => x.id !== id));
+      const next = await fetchSavedItems(10);
+      setSaved(next);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Newspaper className="h-5 w-5 text-teal" />
+          <h2 className="font-display text-2xl text-teal">News radar</h2>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">
+            Last refresh: {formatRelative(lastFetched)}
+          </span>
+          <Button size="sm" variant="outline" disabled={refreshing} onClick={onRefresh}>
+            {refreshing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-sm text-muted-foreground flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+        </div>
+      ) : items.length === 0 ? (
+        <div className="card-soft p-6 text-center text-muted-foreground italic text-sm">
+          No high-relevance items right now. Hit Refresh to pull the latest from sources.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {items.map((item) => (
+            <NewsCard key={item.id} item={item} onDraft={() => onDraftFromItem(item)} onDismiss={() => onDismiss(item.id)} onSave={() => onSave(item.id)} />
+          ))}
+        </div>
+      )}
+
+      {saved.length > 0 && (
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => setShowSaved((v) => !v)}
+            className="text-xs text-teal hover:underline"
+          >
+            {showSaved ? "Hide" : "Show"} {saved.length} saved item{saved.length === 1 ? "" : "s"}
+          </button>
+          {showSaved && (
+            <div className="space-y-3 mt-3">
+              {saved.map((item) => (
+                <NewsCard key={item.id} item={item} onDraft={() => onDraftFromItem(item)} onDismiss={() => onDismiss(item.id)} onSave={() => {/* already saved */}} subtle />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function NewsCard({
+  item,
+  onDraft,
+  onDismiss,
+  onSave,
+  subtle = false,
+}: {
+  item: NewsItem;
+  onDraft: () => void;
+  onDismiss: () => void;
+  onSave: () => void;
+  subtle?: boolean;
+}) {
+  return (
+    <article className={`card-soft p-4 space-y-2 ${subtle ? "opacity-70" : ""}`}>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        {item.source_name && (
+          <span className="px-2 py-0.5 rounded-full bg-muted text-ink/70">{item.source_name}</span>
+        )}
+        {item.topic_match && topicBadge(item.topic_match)}
+        {item.relevance_score != null && (
+          <span className="px-2 py-0.5 rounded-full bg-teal-light text-teal font-medium">
+            Score {item.relevance_score}
+          </span>
+        )}
+        {item.published_at && (
+          <span>{new Date(item.published_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
+        )}
+      </div>
+      <a href={item.url} target="_blank" rel="noreferrer" className="block text-sm font-medium text-ink hover:text-teal">
+        {item.title} <ExternalLink className="inline h-3 w-3 align-baseline" />
+      </a>
+      {item.snippet && (
+        <p className="text-xs text-muted-foreground line-clamp-3">{item.snippet}</p>
+      )}
+      {item.relevance_reasoning && (
+        <p className="text-xs italic text-teal/80">{item.relevance_reasoning}</p>
+      )}
+      <div className="flex flex-wrap gap-2 pt-1">
+        <Button size="sm" className="bg-teal hover:bg-teal/90 text-white" onClick={onDraft}>
+          <Sparkles className="h-3.5 w-3.5 mr-1" /> Draft a post about this
+        </Button>
+        {!subtle && (
+          <Button size="sm" variant="outline" onClick={onSave}>
+            <Bookmark className="h-3.5 w-3.5 mr-1" /> Save for later
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={onDismiss}>
+          <X className="h-3.5 w-3.5 mr-1" /> Dismiss
+        </Button>
+      </div>
+    </article>
   );
 }
 
@@ -535,10 +775,12 @@ function GenerateModal({
   open,
   onOpenChange,
   onCreated,
+  initialValues,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onCreated: () => void;
+  initialValues?: GenerateInitialValues;
 }) {
   const [type, setType] = useState<LinkedInDraftType>("paired");
   const [topic, setTopic] = useState<LinkedInTopic>("sector");
@@ -546,6 +788,17 @@ function GenerateModal({
   const [sourceUrl, setSourceUrl] = useState("");
   const [brief, setBrief] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Apply pre-populated values whenever the modal opens with an initial set
+  // (e.g. when the user hit "Draft a post about this" on a news item).
+  useEffect(() => {
+    if (!open || !initialValues) return;
+    if (initialValues.type) setType(initialValues.type);
+    if (initialValues.topic) setTopic(initialValues.topic);
+    if (initialValues.trigger !== undefined) setTrigger(initialValues.trigger);
+    if (initialValues.sourceUrl !== undefined) setSourceUrl(initialValues.sourceUrl);
+    if (initialValues.brief !== undefined) setBrief(initialValues.brief);
+  }, [open, initialValues]);
 
   const reset = () => {
     setType("paired");
