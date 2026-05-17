@@ -50,7 +50,7 @@ type DraftSinglePayload = {
   brief: string;
   account: string;
   contact: ContactBrief;
-  templateType?: "stepping-stone" | "curation" | "waymap" | "richard-noble" | "newsletter";
+  templateType?: "stepping-stone" | "stepping-stone-long" | "curation" | "waymap" | "richard-noble" | "newsletter";
 };
 
 type DraftIntroPayload = {
