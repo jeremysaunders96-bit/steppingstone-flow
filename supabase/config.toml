@@ -5,3 +5,18 @@ verify_jwt = false
 
 [functions.process-meeting]
 verify_jwt = false
+
+[functions.google-oauth-callback]
+verify_jwt = false
+
+[functions.gmail-create-draft]
+verify_jwt = false
+
+[functions.gcal-today-events]
+verify_jwt = false
+
+[functions.gcal-create-event]
+verify_jwt = false
+
+[functions.gmail-import-contacts]
+verify_jwt = false
