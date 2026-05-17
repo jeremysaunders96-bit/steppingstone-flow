@@ -73,8 +73,8 @@ export async function saveDraftRow(args: {
   body: string;                       // company_body (paired) / commentary (reshare) / post body (standalone)
   personal_commentary?: string;       // only set for paired
 }): Promise<LinkedInPostRow> {
-  const post_type = args.type === "reshare" ? "Reshare" : "Original";
-  const page = args.type === "paired" ? "Company page" : "Personal page";
+  const post_type = args.type === "reshare" ? "reshare" : "original";
+  const page = args.type === "paired" ? "company" : "personal";
   const row = {
     post_type,
     page,

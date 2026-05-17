@@ -52,8 +52,8 @@ function typeBadge(type: LinkedInDraftType) {
 // - Original on Company page → paired
 // - Original on Personal page (no commentary) → personal_standalone
 function postType(p: LinkedInPostRow): LinkedInDraftType {
-  if (p.post_type === "Reshare") return "reshare";
-  if (p.page === "Personal page" && !p.personal_commentary) return "personal_standalone";
+  if (p.post_type === "reshare") return "reshare";
+  if (p.page === "personal" && !p.personal_commentary) return "personal_standalone";
   return "paired";
 }
 

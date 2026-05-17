@@ -113,8 +113,8 @@ export interface IntroductionWithOther extends Introduction {
 }
 
 export type LinkedInStatus = "draft" | "approved" | "ignored" | "posted";
-export type LinkedInType = "Original" | "Reshare" | "Cultural";
-export type LinkedInPage = "Company page" | "Personal page";
+export type LinkedInType = "original" | "reshare" | "cultural";
+export type LinkedInPage = "company" | "personal";
 
 export interface LinkedInPost {
   id: string;
