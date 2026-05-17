@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
 import { IntroductionStatusBadge } from "@/components/IntroductionStatusBadge";
 import { formatLongDate, formatMoney } from "@/lib/format";
-import { DraftEmailModal } from "@/components/modals/DraftEmailModal";
+import { ComposeEmailModal } from "@/components/modals/ComposeEmailModal";
 import { DraftIntroEmailModal } from "@/components/modals/DraftIntroEmailModal";
 import { AddNoteModal } from "@/components/modals/AddNoteModal";
 import { LinkToDealModal } from "@/components/modals/LinkToDealModal";
@@ -360,7 +360,7 @@ export default function ContactDetail() {
         )}
       </section>
 
-      <DraftEmailModal open={draft} onOpenChange={setDraft} contactName={c.full_name} contact={c} />
+      <ComposeEmailModal open={draft} onOpenChange={setDraft} lockedContact={c} />
       <DraftIntroEmailModal open={intro} onOpenChange={setIntro} firstContact={c} />
       <AddNoteModal
         open={note}

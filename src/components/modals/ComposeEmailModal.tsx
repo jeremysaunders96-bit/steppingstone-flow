@@ -48,7 +48,7 @@ function getRecognition(): any | null {
 }
 
 export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) {
-  const [tab, setTab] = useState<"template" | "dictate">("template");
+  const [tab, setTab] = useState<"template" | "dictate">("dictate");
   const [contact, setContact] = useState<Contact | null>(lockedContact ?? null);
   const [template, setTemplate] = useState<TemplateType | null>(null);
   const [personalisation, setPersonalisation] = useState("");
@@ -90,7 +90,7 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
   }, [open, fromAccount]);
 
   const reset = () => {
-    setTab("template");
+    setTab("dictate");
     setTemplate(null);
     setPersonalisation("");
     setTranscript("");
