@@ -44,15 +44,17 @@ export async function refreshNews(): Promise<RefreshResult> {
   return result;
 }
 
-// Items worth Will's attention: scored >= 7, not yet acted on.
-export async function fetchTopItems(limit = 12): Promise<NewsItem[]> {
+// Items worth Will's attention: scored >= 7, not yet acted on, newest first.
+// Score gates the list but date drives the order — Will wants to see the most
+// recent things first within the relevance bar.
+export async function fetchTopItems(limit = 4): Promise<NewsItem[]> {
   const { data, error } = await supabase
     .from("news_items")
     .select("*, source:news_sources(name)")
     .eq("status", "new")
     .gte("relevance_score", 7)
-    .order("relevance_score", { ascending: false })
     .order("published_at", { ascending: false, nullsFirst: false })
+    .order("fetched_at", { ascending: false })
     .limit(limit);
   if (error) throw error;
   return ((data ?? []) as Array<NewsItem & { source: { name: string | null } | null }>)
@@ -64,7 +66,8 @@ export async function fetchSavedItems(limit = 10): Promise<NewsItem[]> {
     .from("news_items")
     .select("*, source:news_sources(name)")
     .eq("status", "saved")
-    .order("relevance_score", { ascending: false })
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("fetched_at", { ascending: false })
     .limit(limit);
   if (error) throw error;
   return ((data ?? []) as Array<NewsItem & { source: { name: string | null } | null }>)
