@@ -9,7 +9,7 @@ import { Loader2, Copy, RefreshCcw, Mic, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ContactPicker } from "@/components/ContactPicker";
 import { type Contact, supabase } from "@/lib/supabase";
-import { generateDraft, fetchRecentInteractions, contactToBrief } from "@/lib/draftEmail";
+import { generateDraft, fetchRecentInteractions, contactToBrief, saveDraftFeedback } from "@/lib/draftEmail";
 import { DraftFeedback } from "@/components/DraftFeedback";
 import { listConnectedAccounts, type GoogleAccountRow } from "@/lib/googleAccounts";
 import { cn } from "@/lib/utils";
@@ -61,6 +61,7 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
   const [subject, setSubject] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [feedbackSaved, setFeedbackSaved] = useState(false);
   const [connectedAccounts, setConnectedAccounts] = useState<GoogleAccountRow[]>([]);
   const [fromAccount, setFromAccount] = useState<string>("");
   const { toast } = useToast();
@@ -102,6 +103,7 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
     setSubject("");
     setLoading(false);
     setSending(false);
+    setFeedbackSaved(false);
     if (!lockedContact) setContact(null);
   };
 
@@ -139,6 +141,7 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
         title: "Draft saved to Gmail",
         description: `Open Gmail Drafts in ${fromAccount} to send.`,
       });
+      recordFeedback();
     } catch (e) {
       toast({
         title: "Couldn't save draft",
@@ -208,6 +211,7 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
       }
       setDraft(text);
       setOriginalDraft(text);
+      setFeedbackSaved(false);
     } catch (e) {
       toast({
         title: "Could not generate draft",
@@ -219,14 +223,40 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
     }
   };
 
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(draft); toast({ title: "Copied to clipboard" }); }
-    catch { toast({ title: "Could not copy", variant: "destructive" }); }
-  };
-
   const briefForFeedback = tab === "template"
     ? `[${template ?? "no-template"}] ${personalisation}`
     : transcript;
+
+  // Implicit feedback capture: fires when Will commits a draft via Copy or Send to Drafts.
+  // No manual click needed. Outcome is inferred from whether the textarea content differs
+  // from Claude's original output. Silent on error — never disrupt the primary action.
+  const recordFeedback = async () => {
+    if (feedbackSaved || !originalDraft) return;
+    setFeedbackSaved(true);
+    try {
+      await saveDraftFeedback({
+        contactId: contact?.id ?? null,
+        mode: "single",
+        outcome: draft.trim() === originalDraft.trim() ? "sent-as-written" : "edited-and-sent",
+        originalDraft,
+        finalVersion: draft,
+        editNotes: null,
+        brief: briefForFeedback,
+      });
+    } catch (e) {
+      console.warn("Implicit feedback save failed", e);
+    }
+  };
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(draft);
+      toast({ title: "Copied to clipboard" });
+      recordFeedback();
+    } catch {
+      toast({ title: "Could not copy", variant: "destructive" });
+    }
+  };
 
   const ToField = (
     lockedContact ? (
