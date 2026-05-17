@@ -18,7 +18,7 @@ const corsHeaders = {
 const FALLBACK_BIBLE = `You are drafting LinkedIn posts on behalf of William Meadon, founder of Steppingstone. Will's audience is senior: investment trust board directors, fund managers, capital markets professionals. Specific over general. Position over both-sides. No em dashes. No "thrilled to share". No hashtags. Return JSON only.`;
 
 interface RequestBody {
-  type: "paired" | "reshare";
+  type: "paired" | "reshare" | "personal_standalone";
   topic: "sector" | "deal" | "network" | "cultural" | "other";
   brief: string;
   trigger_source?: string;
@@ -34,6 +34,9 @@ interface PairedResponse {
 }
 interface ReshareResponse {
   commentary: string;
+}
+interface PersonalStandaloneResponse {
+  body: string;
 }
 
 function tryParseJson<T>(text: string): T | null {
@@ -77,6 +80,13 @@ interface ReshareExample {
   original_reshare_commentary: string | null;
   final_reshare_commentary: string | null;
 }
+interface StandaloneExample {
+  brief: string | null;
+  topic: string | null;
+  // Re-uses the company-body columns for the standalone post body so the schema stays compact.
+  original_company_body: string | null;
+  final_company_body: string | null;
+}
 
 function buildPairedUserMessage(body: RequestBody, examples: PairedExample[]): string {
   const parts: string[] = [
@@ -115,6 +125,47 @@ function buildPairedUserMessage(body: RequestBody, examples: PairedExample[]): s
         `AFTER (what Will sent):`,
         `Company body: ${ex.final_company_body ?? "(none)"}`,
         `Personal commentary: ${ex.final_personal_commentary ?? "(none)"}`,
+        "",
+      );
+    });
+  }
+
+  return parts.filter(Boolean).join("\n");
+}
+
+function buildStandaloneUserMessage(body: RequestBody, examples: StandaloneExample[]): string {
+  const parts: string[] = [
+    `Draft a Type 3 personal-page standalone LinkedIn post for William Meadon.`,
+    ``,
+    `TOPIC: ${topicLabel(body.topic)}`,
+    body.trigger_source ? `WHAT TRIGGERED THIS: ${body.trigger_source}` : "",
+    ``,
+    `WILL'S BRIEF:`,
+    `─────────────────────────────────────────`,
+    body.brief,
+    `─────────────────────────────────────────`,
+    ``,
+    `OUTPUT REQUIRED:`,
+    `One post for Will's personal page. No company-page version. Length adapts to topic: cultural recommendations are 3-5 short sentences; substantive personal commentary can be longer. Will's voice rules apply.`,
+    body.topic === "cultural" ? `For cultural recommendations: lead with what it is, one line of personal reaction, soft close ("Worth an afternoon."), URL if relevant.` : "",
+    ``,
+    `Return ONLY the JSON: {"body": "..."}`,
+  ];
+
+  if (body.regenerate_angle_hint) {
+    parts.push("", `REGENERATE - TRY A DIFFERENT ANGLE: ${body.regenerate_angle_hint}`);
+  }
+
+  if (examples.length > 0) {
+    parts.push("", `RECENT EDITS FROM WILL (study how he reshapes standalone posts):`, "");
+    examples.forEach((ex, i) => {
+      parts.push(
+        `─── Example ${i + 1} (${ex.topic ?? "n/a"}) ───`,
+        `BRIEF: ${ex.brief ?? "(no brief recorded)"}`,
+        ``,
+        `BEFORE: ${ex.original_company_body ?? "(none)"}`,
+        ``,
+        `AFTER: ${ex.final_company_body ?? "(none)"}`,
         "",
       );
     });
@@ -181,8 +232,8 @@ Deno.serve(async (req) => {
     }
 
     const body = (await req.json()) as RequestBody;
-    if (!body.type || !["paired", "reshare"].includes(body.type)) {
-      return new Response(JSON.stringify({ error: "type_required", expected: ["paired", "reshare"] }), {
+    if (!body.type || !["paired", "reshare", "personal_standalone"].includes(body.type)) {
+      return new Response(JSON.stringify({ error: "type_required", expected: ["paired", "reshare", "personal_standalone"] }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -215,6 +266,7 @@ Deno.serve(async (req) => {
     // Pull last 5 edited drafts of the same type as few-shot examples.
     let pairedExamples: PairedExample[] = [];
     let reshareExamples: ReshareExample[] = [];
+    let standaloneExamples: StandaloneExample[] = [];
     try {
       if (body.type === "paired") {
         const { data } = await sb
@@ -231,7 +283,7 @@ Deno.serve(async (req) => {
             return c || p;
           })
           .slice(0, 5);
-      } else {
+      } else if (body.type === "reshare") {
         const { data } = await sb
           .from("linkedin_draft_feedback")
           .select("brief, topic, original_reshare_commentary, final_reshare_commentary")
@@ -242,14 +294,29 @@ Deno.serve(async (req) => {
         reshareExamples = ((data ?? []) as ReshareExample[])
           .filter((r) => (r.original_reshare_commentary ?? "").trim() !== (r.final_reshare_commentary ?? "").trim())
           .slice(0, 5);
+      } else {
+        // personal_standalone re-uses the company-body columns for the post text.
+        const { data } = await sb
+          .from("linkedin_draft_feedback")
+          .select("brief, topic, original_company_body, final_company_body")
+          .eq("type", "personal_standalone")
+          .eq("outcome", "edited-and-sent")
+          .order("created_at", { ascending: false })
+          .limit(8);
+        standaloneExamples = ((data ?? []) as StandaloneExample[])
+          .filter((r) => (r.original_company_body ?? "").trim() !== (r.final_company_body ?? "").trim())
+          .slice(0, 5);
       }
     } catch (e) {
       console.warn("feedback fetch failed", e);
     }
 
-    const userMessage = body.type === "paired"
-      ? buildPairedUserMessage(body, pairedExamples)
-      : buildReshareUserMessage(body, reshareExamples);
+    const userMessage =
+      body.type === "paired"
+        ? buildPairedUserMessage(body, pairedExamples)
+        : body.type === "reshare"
+          ? buildReshareUserMessage(body, reshareExamples)
+          : buildStandaloneUserMessage(body, standaloneExamples);
 
     const client = new Anthropic({ apiKey });
     const completion = await client.messages.create({
@@ -291,16 +358,31 @@ Deno.serve(async (req) => {
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const parsed = tryParseJson<ReshareResponse>(raw);
-    if (!parsed || !parsed.commentary) {
-      return new Response(JSON.stringify({ error: "malformed_reshare", raw, debug: debugPayload }), {
+    if (body.type === "reshare") {
+      const parsed = tryParseJson<ReshareResponse>(raw);
+      if (!parsed || !parsed.commentary) {
+        return new Response(JSON.stringify({ error: "malformed_reshare", raw, debug: debugPayload }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({
+        type: "reshare",
+        commentary: parsed.commentary,
+        debug: debugPayload,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const parsed = tryParseJson<PersonalStandaloneResponse>(raw);
+    if (!parsed || !parsed.body) {
+      return new Response(JSON.stringify({ error: "malformed_standalone", raw, debug: debugPayload }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     return new Response(JSON.stringify({
-      type: "reshare",
-      commentary: parsed.commentary,
+      type: "personal_standalone",
+      body: parsed.body,
       debug: debugPayload,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
