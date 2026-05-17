@@ -1,5 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
-import { supabase as supabaseLegacy, type Contact } from "@/lib/supabase";
+import { supabase, type Contact } from "@/lib/supabase";
 
 export interface InteractionSummary {
   date?: string;
@@ -19,7 +18,7 @@ export interface ContactBrief {
 }
 
 export async function fetchRecentInteractions(contactId: string): Promise<InteractionSummary[]> {
-  const { data, error } = await supabaseLegacy
+  const { data, error } = await supabase
     .from("interactions")
     .select("date, type, summary")
     .eq("contact_id", contactId)
@@ -112,6 +111,6 @@ export async function saveDraftFeedback(args: {
     brief: args.brief ?? null,
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabaseLegacy.from("draft_feedback") as any).insert(row);
+  const { error } = await (supabase.from("draft_feedback") as any).insert(row);
   if (error) throw error;
 }

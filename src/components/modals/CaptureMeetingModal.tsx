@@ -213,21 +213,16 @@ export function CaptureMeetingModal({
     setExtracting(true);
     setExtractError(null);
     try {
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-meeting`;
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        },
-        body: JSON.stringify({ transcript: text }),
+      const { data, error } = await supabase.functions.invoke("process-meeting", {
+        body: { transcript: text },
       });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        setExtractError(data?.error || "Could not process transcript - please try regenerating");
+      if (error) {
+        setExtractError(error.message || "Could not process transcript - please try regenerating");
         setExtraction(null);
-      } else if (data?.extraction) {
+      } else if (data && (data as { error?: string }).error) {
+        setExtractError((data as { error: string }).error);
+        setExtraction(null);
+      } else if (data && (data as { extraction?: Extraction }).extraction) {
         setExtraction(data.extraction as Extraction);
         // Try to pre-populate primary contact by name
         const name = (data.extraction.contact_name || "").trim();
@@ -257,20 +252,15 @@ export function CaptureMeetingModal({
     setPunctuating(true);
     let cleaned = transcript;
     try {
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-meeting`;
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        },
-        body: JSON.stringify({ transcript, mode: "punctuate" }),
+      const { data, error } = await supabase.functions.invoke("process-meeting", {
+        body: { transcript, mode: "punctuate" },
       });
-      const data = await resp.json().catch(() => ({}));
-      if (resp.ok && typeof data?.cleaned === "string" && data.cleaned.trim()) {
-        cleaned = data.cleaned.trim();
-        setTranscript(cleaned);
+      if (!error) {
+        const cleanedText = (data as { cleaned?: string } | null)?.cleaned;
+        if (typeof cleanedText === "string" && cleanedText.trim()) {
+          cleaned = cleanedText.trim();
+          setTranscript(cleaned);
+        }
       }
     } catch {
       // fall through with original transcript

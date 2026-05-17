@@ -1,6 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
-import { generateText } from "npm:ai";
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible";
+import Anthropic from "npm:@anthropic-ai/sdk@0.65.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -251,16 +250,31 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const url = new URL(req.url);
+  const debugQuery = url.searchParams.get("debug") === "1";
+  const debugHeader = req.headers.get("x-debug") === "1";
+  let debug = debugQuery || debugHeader;
+  const dlog = (...args: unknown[]) => {
+    if (debug) console.log("[draft-email:debug]", ...args);
+  };
+
   try {
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: "AI drafting is not configured." }), {
+      return new Response(JSON.stringify({ error: "AI drafting is not configured (ANTHROPIC_API_KEY missing)." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const body = (await req.json()) as RequestBody;
+    const body = (await req.json()) as RequestBody & { debug?: boolean };
+    if (body?.debug === true) debug = true;
+    dlog("incoming body", {
+      mode: body?.mode,
+      templateType: body?.templateType,
+      contactId: body?.contact?.id,
+      briefLength: body?.brief?.length,
+    });
     if (!body || !["single", "intro", "dictation"].includes(body.mode)) {
       return new Response(JSON.stringify({ error: "Missing or invalid mode." }), {
         status: 400,
@@ -291,6 +305,10 @@ Deno.serve(async (req) => {
     } catch (e) {
       console.warn("system_context fetch failed", e);
     }
+    dlog("system prompt source", {
+      length: systemPrompt.length,
+      isFallback: systemPrompt === FALLBACK_SYSTEM_PROMPT,
+    });
 
     if ((body.mode === "single" || body.mode === "dictation") && body.contact?.id) {
       try {
@@ -313,12 +331,24 @@ Deno.serve(async (req) => {
     let template: EmailTemplate | null = null;
     if (body.templateType && body.mode === "single") {
       try {
-        const { data: tplRows } = await sb.from("email_templates").select("*").eq("id", body.templateType).limit(1);
+        const { data: tplRows, error: tplErr } = await sb
+          .from("email_templates")
+          .select("*")
+          .eq("id", body.templateType)
+          .limit(1);
+        dlog("template fetch", {
+          requestedId: body.templateType,
+          error: tplErr?.message ?? null,
+          rowCount: tplRows?.length ?? 0,
+          firstRowId: tplRows?.[0]?.id ?? null,
+          bodyTemplateLength: tplRows?.[0]?.body_template?.length ?? null,
+        });
         if (tplRows && tplRows[0]) {
           template = tplRows[0] as EmailTemplate;
         }
       } catch (e) {
         console.warn("template fetch failed", e);
+        dlog("template fetch threw", e);
       }
     }
 
@@ -352,31 +382,55 @@ Deno.serve(async (req) => {
       .filter((r) => !contactIds.includes(r.contact_id ?? ""))
       .map((r) => ({ edit_notes: r.edit_notes }));
 
-    let userMessage: string;
-    if (body.mode === "dictation") {
-      userMessage = buildDictationUserMessage(body, { contactSpecific, recentEdited });
-    } else if (template) {
-      userMessage = buildTemplateUserMessage(body, template, { contactSpecific, recentEdited });
-    } else {
-      userMessage = buildGeneralUserMessage(body, { contactSpecific, recentEdited });
+    if (body.templateType && body.mode === "single" && !template) {
+      return new Response(
+        JSON.stringify({
+          error: `Template "${body.templateType}" was requested but is not present in email_templates. Add the row before drafting with this template (see supabase/migrations for the seed pattern).`,
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
-    const gateway = createOpenAICompatible({
-      name: "lovable-ai",
-      baseURL: "https://ai.gateway.lovable.dev/v1",
-      headers: {
-        "Lovable-API-Key": apiKey,
-        "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-      },
+    let userMessage: string;
+    let branch: "dictation" | "template" | "general";
+    if (body.mode === "dictation") {
+      branch = "dictation";
+      userMessage = buildDictationUserMessage(body, { contactSpecific, recentEdited });
+    } else if (template) {
+      branch = "template";
+      userMessage = buildTemplateUserMessage(body, template, { contactSpecific, recentEdited });
+    } else {
+      branch = "general";
+      userMessage = buildGeneralUserMessage(body, { contactSpecific, recentEdited });
+    }
+    dlog("prompt branch chosen", {
+      branch,
+      templateRequested: body.templateType ?? null,
+      templateLoaded: !!template,
+      userMessageLength: userMessage.length,
     });
-    const response = await generateText({
-      model: gateway("google/gemini-3-flash-preview"),
-      maxOutputTokens: 2000,
-      system: systemPrompt,
-      prompt: userMessage,
+    if (debug) {
+      console.log("[draft-email:debug] ===== SYSTEM PROMPT =====\n" + systemPrompt);
+      console.log("[draft-email:debug] ===== USER PROMPT =====\n" + userMessage);
+      console.log("[draft-email:debug] ===== END PROMPTS =====");
+    }
+
+    const anthropic = new Anthropic({ apiKey });
+    const completion = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 2000,
+      system: [
+        { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
+      ],
+      messages: [{ role: "user", content: userMessage }],
+    });
+    dlog("model response", {
+      stop_reason: completion.stop_reason,
+      usage: completion.usage,
     });
 
-    const draft = response.text.trim();
+    const first = completion.content[0];
+    const draft = (first && first.type === "text" ? first.text : "").trim();
 
     return new Response(JSON.stringify({ draft }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
