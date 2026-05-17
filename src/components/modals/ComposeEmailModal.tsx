@@ -191,7 +191,7 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact }: Props) 
         text = await generateDraft({
           mode: "single",
           brief: personalisation.trim() || "(no extra personalisation)",
-          account: "william@steppingstone.co.uk",
+          account: "william@sstone.co.uk",
           contact: brief,
           templateType: template,
         });

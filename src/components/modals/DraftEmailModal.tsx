@@ -15,7 +15,7 @@ export function DraftEmailModal({
   open, onOpenChange, contactName, contact,
 }: { open: boolean; onOpenChange: (v: boolean) => void; contactName?: string; contact?: Contact | null }) {
   const [brief, setBrief] = useState("");
-  const [account, setAccount] = useState("william@steppingstone.co.uk");
+  const [account, setAccount] = useState("william@sstone.co.uk");
   const [draft, setDraft] = useState<string>("");
   const [originalDraft, setOriginalDraft] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -80,7 +80,7 @@ export function DraftEmailModal({
             <Select value={account} onValueChange={setAccount}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="william@steppingstone.co.uk">william@steppingstone.co.uk</SelectItem>
+                <SelectItem value="william@sstone.co.uk">william@sstone.co.uk</SelectItem>
                 <SelectItem value="willmeadon@gmail.com">willmeadon@gmail.com</SelectItem>
               </SelectContent>
             </Select>
