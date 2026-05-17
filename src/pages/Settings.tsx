@@ -15,11 +15,13 @@ import {
   disconnectAccount,
   type GoogleAccountRow,
 } from "@/lib/googleAccounts";
+import { fetchFeedbackStats30d, type FeedbackStats30d } from "@/lib/feedbackStats";
 
 export default function Settings() {
   const [accounts, setAccounts] = useState<GoogleAccountRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState<string | null>(null);
+  const [stats, setStats] = useState<FeedbackStats30d | null>(null);
   const [params, setParams] = useSearchParams();
 
   const load = useCallback(async () => {
@@ -36,6 +38,7 @@ export default function Settings() {
 
   useEffect(() => {
     load();
+    fetchFeedbackStats30d().then(setStats).catch(() => { /* silent */ });
   }, [load]);
 
   // Handle OAuth callback feedback (?google_connected= / ?google_error=).
@@ -201,6 +204,46 @@ export default function Settings() {
           Importing contacts is a one-off action per account. It pulls Will's "Other contacts" (people he's
           emailed but never saved) plus his named contacts, tagged <code>gmail-import</code>.
         </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-display text-xl text-teal">Drafting feedback</h2>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Last 30 days. Every Send-to-Drafts or Copy auto-captures a before/after pair, which feeds
+          recent dictation drafts. The higher the "sent as written" share, the closer the model is
+          to Will's voice.
+        </p>
+        {stats === null ? (
+          <div className="text-sm text-muted-foreground italic">Loading…</div>
+        ) : stats.total === 0 ? (
+          <div className="card-soft p-4 text-sm text-muted-foreground italic">
+            No drafts captured yet. The next time Will hits Send to Drafts or Copy, a row lands here.
+          </div>
+        ) : (
+          <div className="card-soft p-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <div className="text-2xl font-display text-teal">{stats.sentAsWritten}</div>
+                <div className="text-xs uppercase tracking-wide text-muted-foreground mt-1">Sent as written</div>
+              </div>
+              <div>
+                <div className="text-2xl font-display text-orange">{stats.editedAndSent}</div>
+                <div className="text-xs uppercase tracking-wide text-muted-foreground mt-1">Edited</div>
+              </div>
+              <div>
+                <div className="text-2xl font-display text-muted-foreground">{stats.rejected}</div>
+                <div className="text-xs uppercase tracking-wide text-muted-foreground mt-1">Rejected</div>
+              </div>
+            </div>
+            <div className="mt-3 text-xs text-muted-foreground">
+              {stats.total} draft{stats.total === 1 ? "" : "s"} captured
+              {stats.lastCapturedAt && ` · last: ${new Date(stats.lastCapturedAt).toLocaleString()}`}
+              {stats.total > 0 && (
+                <> · <strong>{Math.round((stats.sentAsWritten / stats.total) * 100)}%</strong> sent as written</>
+              )}
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );
