@@ -18,10 +18,11 @@ interface Props {
   lockedContact?: Contact | null;
 }
 
-type TemplateType = "stepping-stone" | "curation" | "waymap" | "richard-noble" | "newsletter";
+type TemplateType = "stepping-stone" | "stepping-stone-long" | "curation" | "waymap" | "richard-noble" | "newsletter";
 
 const TEMPLATES: { id: TemplateType; label: string }[] = [
   { id: "stepping-stone", label: "Stepping Stone Introduction" },
+  { id: "stepping-stone-long", label: "Stepping Stone (long version)" },
   { id: "curation", label: "Curation Connect Introduction" },
   { id: "waymap", label: "Waymap Introduction" },
   { id: "richard-noble", label: "Richard Noble (ThrustWSH)" },
@@ -30,6 +31,7 @@ const TEMPLATES: { id: TemplateType; label: string }[] = [
 
 const TEMPLATE_PLACEHOLDERS: Record<TemplateType, string> = {
   "stepping-stone": "e.g. We met at the Langham yesterday, he runs a hospitality group and is interested in growing his profile. Lunch booked for next Thursday.",
+  "stepping-stone-long": "e.g. James at Curation, we collaborated on Waymap recently which went well. Worth mentioning we may collaborate on AI introductions and revenue-sharing arrangements.",
   "curation": "e.g. She chairs JPMorgan Claverhouse, we had lunch last week, she's interested but has to put it to the board next month.",
   "waymap": "e.g. Introduced by James Blomfield, runs hotels in central London, focus should be on the built environment use case.",
   "richard-noble": "e.g. Scottish entrepreneur, interested in sponsorship, met him at David Yarrow's exhibition.",
