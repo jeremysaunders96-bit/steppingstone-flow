@@ -1,0 +1,2 @@
+UPDATE public.email_templates SET label = 'Steppingstone Introduction' WHERE id = 'stepping-stone';
+UPDATE public.email_templates SET label = 'Steppingstone (long version)' WHERE id = 'stepping-stone-long';

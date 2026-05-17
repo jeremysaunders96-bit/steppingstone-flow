@@ -21,8 +21,8 @@ interface Props {
 type TemplateType = "stepping-stone" | "stepping-stone-long" | "curation" | "waymap" | "richard-noble" | "newsletter";
 
 const TEMPLATES: { id: TemplateType; label: string }[] = [
-  { id: "stepping-stone", label: "Stepping Stone Introduction" },
-  { id: "stepping-stone-long", label: "Stepping Stone (long version)" },
+  { id: "stepping-stone", label: "Steppingstone Introduction" },
+  { id: "stepping-stone-long", label: "Steppingstone (long version)" },
   { id: "curation", label: "Curation Connect Introduction" },
   { id: "waymap", label: "Waymap Introduction" },
   { id: "richard-noble", label: "Richard Noble (ThrustWSH)" },
