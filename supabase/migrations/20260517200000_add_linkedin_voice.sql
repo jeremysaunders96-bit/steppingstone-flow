@@ -81,8 +81,14 @@ end$$;
 create unique index if not exists system_context_kind_unique on public.system_context(kind);
 
 -- 4. Seed the LinkedIn voice row. Verbatim from Will's brief (2026-05-17).
-insert into public.system_context (kind, context_text)
-select 'linkedin_voice', $bible$You are drafting LinkedIn posts on behalf of William Meadon, founder of Steppingstone.
+-- The system_context table was originally created by Lovable with an integer id
+-- (default 1). My earlier migration declared it as uuid via "create table if not
+-- exists" but the table already existed, so the integer schema stayed. Branch on
+-- the actual column type so this works against either shape.
+do $linkedin_seed$
+declare
+  id_col_type text;
+  bible_text text := $bible$You are drafting LinkedIn posts on behalf of William Meadon, founder of Steppingstone.
 
 ═══════════════════════════════════════════════════
 WILL'S SITUATION
@@ -211,7 +217,28 @@ For Type 2 reshare-with-commentary:
   "commentary": "<the 1-3 sentence commentary>"
 }
 
-Do not add any text outside the JSON.$bible$
-where not exists (
-  select 1 from public.system_context where kind = 'linkedin_voice'
-);
+Do not add any text outside the JSON.$bible$;
+begin
+  if exists (select 1 from public.system_context where kind = 'linkedin_voice') then
+    return;
+  end if;
+
+  select data_type into id_col_type
+  from information_schema.columns
+  where table_schema = 'public' and table_name = 'system_context' and column_name = 'id';
+
+  if id_col_type in ('integer','bigint','smallint') then
+    -- Integer id: pick next available value instead of relying on a stale default.
+    insert into public.system_context (id, kind, context_text)
+    values (
+      (select coalesce(max(id), 0) + 1 from public.system_context),
+      'linkedin_voice',
+      bible_text
+    );
+  else
+    -- uuid / text / other: let the column default fire.
+    insert into public.system_context (kind, context_text)
+    values ('linkedin_voice', bible_text);
+  end if;
+end
+$linkedin_seed$;
