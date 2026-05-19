@@ -12,7 +12,7 @@ import { DealPicker } from "@/components/DealPicker";
 import { AddContactModal } from "@/components/modals/AddContactModal";
 import { supabase, type Contact, type Deal } from "@/lib/supabase";
 import { listConnectedAccounts, type GoogleAccountRow } from "@/lib/googleAccounts";
-import { findClosestContact } from "@/lib/contactMatch";
+import { findClosestContact, correctName } from "@/lib/contactMatch";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -288,17 +288,30 @@ export function CaptureMeetingModal({
         setExtractError((data as { error: string }).error);
         setExtraction(null);
       } else if (data && (data as { extraction?: Extraction }).extraction) {
-        setExtraction(data.extraction as Extraction);
+        let finalExtraction = data.extraction as Extraction;
         // Try to pre-populate primary contact by name, with fuzzy matching
         // because speech-to-text mangles unusual names ("Cian" → "siyan",
-        // "Eoin" → "owen" etc.). findClosestContact does a Levenshtein scan
-        // against full names AND each individual word, so a misheard first
-        // name still finds the right contact.
-        const name = (data.extraction.contact_name || "").trim();
-        if (name && !primaryContact) {
-          const match = await findClosestContact(name);
-          if (match) setPrimaryContact(match.contact);
+        // "Eoin" → "owen" etc.). When we match a contact, also rewrite the
+        // misheard name throughout the extraction text so the saved
+        // interaction notes use the correct spelling.
+        const misheardName = (finalExtraction.contact_name || "").trim();
+        if (misheardName && !primaryContact) {
+          const match = await findClosestContact(misheardName);
+          if (match) {
+            setPrimaryContact(match.contact);
+            const correctFullName = match.contact.full_name;
+            const fix = (s: string | null | undefined) => correctName(s, misheardName, correctFullName);
+            finalExtraction = {
+              ...finalExtraction,
+              contact_name: correctFullName,
+              company: fix(finalExtraction.company) || null,
+              key_points: finalExtraction.key_points.map((p) => fix(p) || p),
+              action_items: finalExtraction.action_items.map((a) => fix(a) || a),
+              additional_notes: fix(finalExtraction.additional_notes) || null,
+            };
+          }
         }
+        setExtraction(finalExtraction);
       } else {
         setExtractError("Could not process transcript - please try regenerating");
       }

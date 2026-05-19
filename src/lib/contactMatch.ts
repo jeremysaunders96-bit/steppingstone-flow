@@ -48,6 +48,46 @@ export interface ContactMatch {
   confidence: "high" | "medium" | "low";
 }
 
+// Word-boundary case-insensitive replacement. Used by correctName to swap a
+// misheard name string for the correct one without touching incidental
+// substrings (e.g. won't change "siyanmovers" while fixing "siyan").
+function replaceWord(text: string, search: string, replacement: string): string {
+  if (!text || !search) return text;
+  const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`\\b${escaped}\\b`, "gi");
+  return text.replace(re, replacement);
+}
+
+// Rewrites a piece of text so that occurrences of a misheard name (or its
+// first-name portion) are replaced with the correct spelling. Speech-to-text
+// often mishears unusual names ("Cian" → "siyan"), and Claude's structured
+// extraction propagates the misheard form into key points, action items, and
+// notes. Once findClosestContact has identified the real contact, run this
+// over each extraction text field so the saved interaction uses the right
+// spelling everywhere.
+export function correctName(
+  text: string | null | undefined,
+  misheard: string,
+  correct: string,
+): string {
+  if (!text) return text ?? "";
+  if (!misheard || !correct || misheard.trim().toLowerCase() === correct.trim().toLowerCase()) {
+    return text;
+  }
+  let result = text;
+  // Full multi-word misheard form first (e.g. "siyan hanson" → "Cian Hanson")
+  if (misheard.includes(" ") && misheard.length > 2) {
+    result = replaceWord(result, misheard, correct);
+  }
+  // Then first-name-only swap so casual mentions get corrected too.
+  const misheardFirst = misheard.split(/\s+/)[0] ?? "";
+  const correctFirst = correct.split(/\s+/)[0] ?? "";
+  if (misheardFirst.length > 2 && misheardFirst.toLowerCase() !== correctFirst.toLowerCase()) {
+    result = replaceWord(result, misheardFirst, correctFirst);
+  }
+  return result;
+}
+
 // Finds the closest contact to a dictated/extracted name. Returns null if no
 // contact is close enough to be a confident match. High confidence is edit
 // distance ≤ 2; medium is ≤ 4. Beyond that we leave it for manual selection
