@@ -308,6 +308,12 @@ export function CaptureMeetingModal({
               key_points: finalExtraction.key_points.map((p) => fix(p) || p),
               action_items: finalExtraction.action_items.map((a) => fix(a) || a),
               additional_notes: fix(finalExtraction.additional_notes) || null,
+              calendar_events: (finalExtraction.calendar_events ?? []).map((ev) => ({
+                ...ev,
+                summary: fix(ev.summary) || ev.summary,
+                description: ev.description ? (fix(ev.description) || null) : null,
+                location: ev.location ? (fix(ev.location) || null) : null,
+              })),
             };
           }
         }
