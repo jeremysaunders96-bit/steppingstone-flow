@@ -3,7 +3,6 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import Anthropic from "npm:@anthropic-ai/sdk@0.65.0";
-import { XMLParser } from "npm:fast-xml-parser@4.3.6";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,55 +56,73 @@ function stripHtml(s: string | undefined | null): string {
   return String(s).replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
 }
 
-async function parseRss(xml: string): Promise<RssItem[]> {
-  const parser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: "@_",
-    parseTagValue: false,
-    trimValues: true,
-  });
-  const doc = parser.parse(xml);
+// Hand-rolled RSS/Atom parser. Avoids the npm:fast-xml-parser dependency that
+// was failing to start in Supabase's Deno runtime. RSS and Atom feeds have
+// strict, predictable structure; regex is brittle in general but fine here.
+function unwrapCdata(s: string): string {
+  return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1");
+}
 
-  // RSS 2.0: rss.channel.item[]
-  const rssItems = doc?.rss?.channel?.item;
-  if (rssItems) {
-    const list = Array.isArray(rssItems) ? rssItems : [rssItems];
-    return list.map((it: Record<string, unknown>) => ({
-      title: stripHtml(it.title as string),
-      url: typeof it.link === "string" ? it.link : (it.link as { "#text"?: string })?.["#text"] ?? "",
-      snippet: stripHtml((it.description ?? it["content:encoded"]) as string).slice(0, 500),
-      author: stripHtml((it["dc:creator"] ?? it.author) as string) || null,
-      published_at: tryParseDate((it.pubDate ?? it["dc:date"]) as string),
-    })).filter((x: RssItem) => x.title && x.url);
+function extractTag(block: string, tag: string): string | null {
+  // Match <tag ...>content</tag>, case-insensitive, lazy
+  const re = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)</${tag}>`, "i");
+  const m = block.match(re);
+  if (!m) return null;
+  return unwrapCdata(m[1]).trim();
+}
+
+function parseRss(xml: string): RssItem[] {
+  const items: RssItem[] = [];
+
+  // RSS 2.0 <item> blocks
+  const itemRe = /<item\b[^>]*>([\s\S]*?)<\/item>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = itemRe.exec(xml)) !== null) {
+    const block = m[1];
+    const title = stripHtml(extractTag(block, "title") ?? "");
+    const link = extractTag(block, "link") ?? "";
+    if (!title || !link) continue;
+    items.push({
+      title,
+      url: link,
+      snippet: stripHtml(extractTag(block, "description") ?? extractTag(block, "content:encoded") ?? "").slice(0, 500),
+      author: stripHtml(extractTag(block, "dc:creator") ?? extractTag(block, "author") ?? "") || null,
+      published_at: tryParseDate(extractTag(block, "pubDate") ?? extractTag(block, "dc:date")),
+    });
   }
 
-  // Atom: feed.entry[]
-  const atomEntries = doc?.feed?.entry;
-  if (atomEntries) {
-    const list = Array.isArray(atomEntries) ? atomEntries : [atomEntries];
-    return list.map((it: Record<string, unknown>) => {
-      // Atom <link> can be href attribute or a string.
-      let url = "";
-      const link = it.link;
-      if (Array.isArray(link)) {
-        const html = link.find((l: Record<string, unknown>) => l?.["@_rel"] !== "self");
-        url = (html as { "@_href"?: string })?.["@_href"] ?? "";
-      } else if (link && typeof link === "object") {
-        url = (link as { "@_href"?: string })["@_href"] ?? "";
-      } else if (typeof link === "string") {
-        url = link;
+  // Atom <entry> blocks
+  const entryRe = /<entry\b[^>]*>([\s\S]*?)<\/entry>/gi;
+  while ((m = entryRe.exec(xml)) !== null) {
+    const block = m[1];
+    const title = stripHtml(extractTag(block, "title") ?? "");
+    // Atom <link href="..."/> uses an attribute, not inner text. Prefer rel="alternate" or no rel.
+    let url = "";
+    const linkRe = /<link\b([^>]*)\/?>/gi;
+    let lm: RegExpExecArray | null;
+    while ((lm = linkRe.exec(block)) !== null) {
+      const attrs = lm[1];
+      const relMatch = attrs.match(/\brel=["']([^"']+)["']/i);
+      const hrefMatch = attrs.match(/\bhref=["']([^"']+)["']/i);
+      if (!hrefMatch) continue;
+      const rel = relMatch?.[1];
+      if (!rel || rel === "alternate") {
+        url = hrefMatch[1];
+        break;
       }
-      return {
-        title: stripHtml(it.title as string),
-        url,
-        snippet: stripHtml((it.summary ?? it.content) as string).slice(0, 500),
-        author: stripHtml(((it.author as { name?: string })?.name) ?? "") || null,
-        published_at: tryParseDate((it.published ?? it.updated) as string),
-      };
-    }).filter((x: RssItem) => x.title && x.url);
+      if (!url) url = hrefMatch[1]; // fallback to first link
+    }
+    if (!title || !url) continue;
+    items.push({
+      title,
+      url,
+      snippet: stripHtml(extractTag(block, "summary") ?? extractTag(block, "content") ?? "").slice(0, 500),
+      author: stripHtml(extractTag(block, "name") ?? "") || null,
+      published_at: tryParseDate(extractTag(block, "published") ?? extractTag(block, "updated")),
+    });
   }
 
-  return [];
+  return items;
 }
 
 async function scoreBatch(
