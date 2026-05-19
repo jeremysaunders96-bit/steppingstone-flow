@@ -223,19 +223,29 @@ Deno.serve(async (req) => {
 
     let insertedRows: Array<{ id: string; title: string; snippet: string | null }> = [];
     if (toInsert.length > 0) {
-      const { data: inserted, error: insErr } = await sb
-        .from("news_items")
-        .insert(toInsert.map((it) => ({
-          source_id: it.source_id,
-          url: it.url,
-          title: it.title,
-          snippet: it.snippet,
-          author: it.author,
-          published_at: it.published_at,
-        })))
-        .select("id, title, snippet");
-      if (insErr) throw insErr;
-      insertedRows = (inserted ?? []) as typeof insertedRows;
+      try {
+        const { data: inserted, error: insErr } = await sb
+          .from("news_items")
+          .insert(toInsert.map((it) => ({
+            source_id: it.source_id,
+            url: it.url,
+            title: it.title.slice(0, 1000),
+            snippet: it.snippet?.slice(0, 2000) ?? null,
+            author: it.author?.slice(0, 200) ?? null,
+            published_at: it.published_at,
+          })))
+          .select("id, title, snippet");
+        if (insErr) {
+          console.error("news_items insert failed:", insErr.message);
+          sourceErrors.push({ name: "_insert", error: insErr.message });
+        } else {
+          insertedRows = (inserted ?? []) as typeof insertedRows;
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("news_items insert threw:", msg);
+        sourceErrors.push({ name: "_insert", error: msg });
+      }
     }
 
     // 4. Pull all unscored items (newly inserted + any backlog).
@@ -246,23 +256,32 @@ Deno.serve(async (req) => {
       .order("fetched_at", { ascending: false })
       .limit(60);
 
-    // 5. Batch score in chunks of 20.
+    // 5. Batch score in chunks of 20. Wrap each batch in try/catch so a single
+    // bad Anthropic call doesn't crash the whole refresh.
     const client = new Anthropic({ apiKey });
     let scoredCount = 0;
+    const scoringErrors: Array<{ batch: number; error: string }> = [];
     const all = (unscored ?? []) as Array<{ id: string; title: string; snippet: string | null }>;
     for (let i = 0; i < all.length; i += 20) {
       const batch = all.slice(i, i + 20);
-      const scores = await scoreBatch(client, batch);
-      for (const s of scores) {
-        const { error: updErr } = await sb
-          .from("news_items")
-          .update({
-            relevance_score: s.score,
-            relevance_reasoning: s.why,
-            topic_match: s.topic,
-          })
-          .eq("id", s.id);
-        if (!updErr) scoredCount++;
+      try {
+        const scores = await scoreBatch(client, batch);
+        for (const s of scores) {
+          const { error: updErr } = await sb
+            .from("news_items")
+            .update({
+              relevance_score: s.score,
+              relevance_reasoning: s.why,
+              topic_match: s.topic,
+            })
+            .eq("id", s.id);
+          if (!updErr) scoredCount++;
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`scoreBatch failed at index ${i}:`, msg);
+        scoringErrors.push({ batch: i, error: msg });
+        // Continue to the next batch rather than crashing the whole function.
       }
     }
 
@@ -272,6 +291,7 @@ Deno.serve(async (req) => {
       new_items: toInsert.length,
       scored: scoredCount,
       errors: sourceErrors,
+      scoring_errors: scoringErrors,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (err) {
