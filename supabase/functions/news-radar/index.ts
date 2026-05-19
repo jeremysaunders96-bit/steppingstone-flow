@@ -3,7 +3,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import Anthropic from "npm:@anthropic-ai/sdk@0.65.0";
-import { XMLParser } from "npm:fast-xml-parser@4.5.0";
+import { XMLParser } from "npm:fast-xml-parser@4.3.6";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
