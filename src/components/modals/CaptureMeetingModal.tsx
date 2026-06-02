@@ -222,8 +222,41 @@ export function CaptureMeetingModal({
     setListening(false);
   }
 
-  function startListening() {
+  function describeSpeechError(code: string): string {
+    switch (code) {
+      case "not-allowed":
+      case "service-not-allowed":
+        return "Microphone permission denied";
+      case "network":
+        return "Speech service needs an internet connection";
+      case "no-speech":
+        return "Didn't catch anything, try again";
+      default:
+        return `Voice recording error: ${code || "unknown"}`;
+    }
+  }
+
+  async function startListening() {
     if (!supported) return;
+
+    // If a recogniser is already running, stop it cleanly before starting fresh.
+    if (recRef.current && listening) {
+      stopListening();
+      await new Promise((r) => setTimeout(r, 150));
+    }
+
+    // Pre-flight mic permission. We don't need the stream itself — just consent.
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+    } catch (err) {
+      console.error("[CaptureMeeting] getUserMedia failed", err);
+      toast.error(
+        "Microphone access is blocked — enable it in your browser settings and tap record again",
+      );
+      return;
+    }
+
     const rec = getRecognition();
     if (!rec) return;
     recRef.current = rec;
@@ -246,7 +279,10 @@ export function CaptureMeetingModal({
       const sep = baseRef.current && !baseRef.current.endsWith(" ") ? " " : "";
       setTranscript(baseRef.current + sep + combined);
     };
-    rec.onerror = () => {
+    rec.onerror = (event: any) => {
+      const code = event?.error || "";
+      console.error("[CaptureMeeting] SpeechRecognition error", event, code);
+      toast.error(describeSpeechError(code));
       stopListening();
     };
     rec.onend = () => {
@@ -254,13 +290,30 @@ export function CaptureMeetingModal({
       setListening(false);
     };
 
-    try {
-      rec.start();
-      setListening(true);
-      startTick();
-    } catch {
-      setListening(false);
-    }
+    const tryStart = (attempt = 0) => {
+      try {
+        rec.start();
+        setListening(true);
+        startTick();
+      } catch (err: any) {
+        console.error("[CaptureMeeting] rec.start() threw", err);
+        const msg = String(err?.message || err?.name || "");
+        const alreadyStarted =
+          err?.name === "InvalidStateError" || /already started/i.test(msg);
+        if (alreadyStarted && attempt === 0) {
+          try { rec.stop(); } catch { /* noop */ }
+          setTimeout(() => tryStart(1), 200);
+          return;
+        }
+        toast.error(
+          alreadyStarted
+            ? "Voice recording is already running — please try again"
+            : `Couldn't start voice recording: ${msg || "unknown error"}`,
+        );
+        setListening(false);
+      }
+    };
+    tryStart();
   }
 
   function toggleRecord() {
@@ -587,7 +640,7 @@ export function CaptureMeetingModal({
                   <Button variant="ghost" onClick={reRecord}>Re-record</Button>
                   <Button
                     className="bg-teal hover:bg-teal/90 text-white"
-                    disabled={wordCount < 10}
+                    disabled={transcript.trim().length === 0}
                     onClick={goToReview}
                   >
                     Continue
