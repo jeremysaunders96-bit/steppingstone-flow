@@ -29,6 +29,9 @@ export interface Contact {
   notes: string | null;
   last_contact_date: string | null;
   created_at: string;
+  fund: string | null;
+  board: string | null;
+  custom_fields: Record<string, string> | null;
 }
 
 export type InteractionType =

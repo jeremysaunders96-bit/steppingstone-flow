@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ChevronLeft, ChevronDown, ChevronRight, Link2, Mic, Pencil } from "lucide-react";
 import { supabase, type Contact, type Interaction, type IntroductionWithOther, type Deal } from "@/lib/supabase";
@@ -48,7 +48,17 @@ export default function ContactDetail() {
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState("");
   const [editCompany, setEditCompany] = useState("");
+  const [editFund, setEditFund] = useState("");
+  const [editBoard, setEditBoard] = useState("");
+  const [editCustom, setEditCustom] = useState<Record<string, string>>({});
   const [savingTop, setSavingTop] = useState(false);
+
+  const customKeys = useMemo<{ key: string; label: string }[]>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem("contacts.customCols.v1") || "[]");
+      return Array.isArray(v) ? v : [];
+    } catch { return []; }
+  }, []);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -131,6 +141,12 @@ export default function ContactDetail() {
     setEditName(c.full_name);
     setEditRole(c.role || "");
     setEditCompany(c.company || "");
+    setEditFund(c.fund || "");
+    setEditBoard(c.board || "");
+    const cf = (c.custom_fields || {}) as Record<string, string>;
+    const seeded: Record<string, string> = {};
+    for (const ck of customKeys) seeded[ck.key] = cf[ck.key] || "";
+    setEditCustom(seeded);
     setEditingTop(true);
   };
 
@@ -139,13 +155,29 @@ export default function ContactDetail() {
     setEditName("");
     setEditRole("");
     setEditCompany("");
+    setEditFund("");
+    setEditBoard("");
+    setEditCustom({});
   };
 
   const saveTop = async () => {
     if (!id || !editName.trim()) return;
     setSavingTop(true);
+    const mergedCustom: Record<string, string> = { ...(c?.custom_fields || {}) };
+    for (const [k, v] of Object.entries(editCustom)) {
+      const val = v.trim();
+      if (val) mergedCustom[k] = val;
+      else delete mergedCustom[k];
+    }
     const { error } = await supabase.from("contacts")
-      .update({ full_name: editName.trim(), role: editRole.trim() || null, company: editCompany.trim() || null })
+      .update({
+        full_name: editName.trim(),
+        role: editRole.trim() || null,
+        company: editCompany.trim() || null,
+        fund: editFund.trim() || null,
+        board: editBoard.trim() || null,
+        custom_fields: mergedCustom,
+      })
       .eq("id", id);
     setSavingTop(false);
     if (error) { toast.error(error.message); return; }
@@ -198,6 +230,30 @@ export default function ContactDetail() {
                     placeholder="Company"
                   />
                 </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={editFund}
+                    onChange={e => setEditFund(e.target.value)}
+                    placeholder="Fund"
+                  />
+                  <Input
+                    value={editBoard}
+                    onChange={e => setEditBoard(e.target.value)}
+                    placeholder="Board"
+                  />
+                </div>
+                {customKeys.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {customKeys.map(ck => (
+                      <Input
+                        key={ck.key}
+                        value={editCustom[ck.key] ?? ""}
+                        onChange={e => setEditCustom(prev => ({ ...prev, [ck.key]: e.target.value }))}
+                        placeholder={ck.label}
+                      />
+                    ))}
+                  </div>
+                )}
                 <div className="flex items-center gap-2 pt-1">
                   <Button
                     size="sm"
