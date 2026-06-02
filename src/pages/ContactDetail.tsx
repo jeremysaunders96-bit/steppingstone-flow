@@ -53,6 +53,13 @@ export default function ContactDetail() {
   const [editCustom, setEditCustom] = useState<Record<string, string>>({});
   const [savingTop, setSavingTop] = useState(false);
 
+  const customKeys = useMemo<{ key: string; label: string }[]>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem("contacts.customCols.v1") || "[]");
+      return Array.isArray(v) ? v : [];
+    } catch { return []; }
+  }, []);
+
   const load = useCallback(async () => {
     if (!id) return;
     const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
