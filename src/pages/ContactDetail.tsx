@@ -126,6 +126,34 @@ export default function ContactDetail() {
     load();
   };
 
+  const startEditTop = () => {
+    if (!c) return;
+    setEditName(c.full_name);
+    setEditRole(c.role || "");
+    setEditCompany(c.company || "");
+    setEditingTop(true);
+  };
+
+  const cancelEditTop = () => {
+    setEditingTop(false);
+    setEditName("");
+    setEditRole("");
+    setEditCompany("");
+  };
+
+  const saveTop = async () => {
+    if (!id || !editName.trim()) return;
+    setSavingTop(true);
+    const { error } = await supabase.from("contacts")
+      .update({ full_name: editName.trim(), role: editRole.trim() || null, company: editCompany.trim() || null })
+      .eq("id", id);
+    setSavingTop(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Contact updated");
+    setEditingTop(false);
+    await load();
+  };
+
   if (!c) return <div className="text-muted-foreground">Loading…</div>;
 
   return (
