@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ChevronLeft, ChevronDown, ChevronRight, Link2, Mic } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronRight, Link2, Mic, Pencil } from "lucide-react";
 import { supabase, type Contact, type Interaction, type IntroductionWithOther, type Deal } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -43,6 +43,12 @@ export default function ContactDetail() {
   const [pickedRole, setPickedRole] = useState("");
   const [savingLink, setSavingLink] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const [editingTop, setEditingTop] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editRole, setEditRole] = useState("");
+  const [editCompany, setEditCompany] = useState("");
+  const [savingTop, setSavingTop] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -120,6 +126,34 @@ export default function ContactDetail() {
     load();
   };
 
+  const startEditTop = () => {
+    if (!c) return;
+    setEditName(c.full_name);
+    setEditRole(c.role || "");
+    setEditCompany(c.company || "");
+    setEditingTop(true);
+  };
+
+  const cancelEditTop = () => {
+    setEditingTop(false);
+    setEditName("");
+    setEditRole("");
+    setEditCompany("");
+  };
+
+  const saveTop = async () => {
+    if (!id || !editName.trim()) return;
+    setSavingTop(true);
+    const { error } = await supabase.from("contacts")
+      .update({ full_name: editName.trim(), role: editRole.trim() || null, company: editCompany.trim() || null })
+      .eq("id", id);
+    setSavingTop(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Contact updated");
+    setEditingTop(false);
+    await load();
+  };
+
   if (!c) return <div className="text-muted-foreground">Loading…</div>;
 
   return (
@@ -130,12 +164,53 @@ export default function ContactDetail() {
 
       <section className="card-soft p-6 md:p-8">
         <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="min-w-0">
-            <h1 className="font-display text-3xl text-ink">{c.full_name}</h1>
-            {(c.role || c.company) && (
-              <p className="text-muted-foreground mt-1">{[c.role, c.company].filter(Boolean).join(" · ")}</p>
+          <div className="min-w-0 flex-1">
+            {!editingTop ? (
+              <>
+                <h1 className="font-display text-3xl text-ink">{c.full_name}</h1>
+                {(c.role || c.company) && (
+                  <p className="text-muted-foreground mt-1">{[c.role, c.company].filter(Boolean).join(" · ")}</p>
+                )}
+                <div className="mt-2 flex items-center gap-3">
+                  <StatusBadge status={c.status} />
+                  <button onClick={startEditTop} className="inline-flex items-center gap-1 text-xs text-teal hover:underline">
+                    <Pencil className="h-3 w-3" /> Edit
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Input
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  placeholder="Full name"
+                  className="text-lg font-display"
+                />
+                <div className="flex gap-2">
+                  <Input
+                    value={editRole}
+                    onChange={e => setEditRole(e.target.value)}
+                    placeholder="Role"
+                  />
+                  <Input
+                    value={editCompany}
+                    onChange={e => setEditCompany(e.target.value)}
+                    placeholder="Company"
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    className="bg-teal hover:bg-teal/90 text-white"
+                    onClick={saveTop}
+                    disabled={savingTop || !editName.trim()}
+                  >
+                    {savingTop ? "Saving…" : "Save"}
+                  </Button>
+                  <button onClick={cancelEditTop} className="text-xs text-muted-foreground hover:text-ink">Cancel</button>
+                </div>
+              </div>
             )}
-            <div className="mt-2"><StatusBadge status={c.status} /></div>
           </div>
           <div className="flex items-center gap-3">
             <div className="inline-flex rounded-md overflow-hidden shadow-sm">
