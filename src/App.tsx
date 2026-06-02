@@ -8,6 +8,7 @@ import { PasswordGate } from "@/components/PasswordGate";
 import Home from "./pages/Home";
 import Contacts from "./pages/Contacts";
 import ContactDetail from "./pages/ContactDetail";
+import CompanyDetail from "./pages/CompanyDetail";
 import LinkedInQueue from "./pages/LinkedInQueue";
 import Deals from "./pages/Deals";
 import Meetings from "./pages/Meetings";
@@ -30,6 +31,7 @@ const App = () => (
               <Route path="/" element={<Home />} />
               <Route path="/contacts" element={<Contacts />} />
               <Route path="/contacts/:id" element={<ContactDetail />} />
+              <Route path="/company/:name" element={<CompanyDetail />} />
               <Route path="/meetings" element={<Meetings />} />
               <Route path="/action-items" element={<ActionItems />} />
               <Route path="/deals" element={<Deals />} />

@@ -201,7 +201,18 @@ export default function ContactDetail() {
               <>
                 <h1 className="font-display text-3xl text-ink">{c.full_name}</h1>
                 {(c.role || c.company) && (
-                  <p className="text-muted-foreground mt-1">{[c.role, c.company].filter(Boolean).join(" · ")}</p>
+                  <p className="text-muted-foreground mt-1">
+                    {c.role && <span>{c.role}</span>}
+                    {c.role && c.company && <span> · </span>}
+                    {c.company && (
+                      <Link
+                        to={`/company/${encodeURIComponent(c.company)}`}
+                        className="text-teal hover:underline"
+                      >
+                        {c.company}
+                      </Link>
+                    )}
+                  </p>
                 )}
                 <div className="mt-2 flex items-center gap-3">
                   <StatusBadge status={c.status} />
