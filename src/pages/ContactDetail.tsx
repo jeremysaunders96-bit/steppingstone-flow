@@ -145,7 +145,7 @@ export default function ContactDetail() {
     setEditBoard(c.board || "");
     const cf = (c.custom_fields || {}) as Record<string, string>;
     const seeded: Record<string, string> = {};
-    for (const k of customKeys) seeded[k] = cf[k] || "";
+    for (const ck of customKeys) seeded[ck.key] = cf[ck.key] || "";
     setEditCustom(seeded);
     setEditingTop(true);
   };
