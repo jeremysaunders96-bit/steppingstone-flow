@@ -230,6 +230,30 @@ export default function ContactDetail() {
                     placeholder="Company"
                   />
                 </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={editFund}
+                    onChange={e => setEditFund(e.target.value)}
+                    placeholder="Fund"
+                  />
+                  <Input
+                    value={editBoard}
+                    onChange={e => setEditBoard(e.target.value)}
+                    placeholder="Board"
+                  />
+                </div>
+                {customKeys.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {customKeys.map(ck => (
+                      <Input
+                        key={ck.key}
+                        value={editCustom[ck.key] ?? ""}
+                        onChange={e => setEditCustom(prev => ({ ...prev, [ck.key]: e.target.value }))}
+                        placeholder={ck.label}
+                      />
+                    ))}
+                  </div>
+                )}
                 <div className="flex items-center gap-2 pt-1">
                   <Button
                     size="sm"
