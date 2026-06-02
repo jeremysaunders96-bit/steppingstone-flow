@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ChevronLeft, ChevronDown, ChevronRight, Link2, Mic } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronRight, Link2, Mic, Pencil } from "lucide-react";
 import { supabase, type Contact, type Interaction, type IntroductionWithOther, type Deal } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
