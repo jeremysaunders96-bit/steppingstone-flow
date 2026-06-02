@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, Copy, RefreshCcw, Mic, Send } from "lucide-react";
+import { Loader2, Copy, RefreshCcw, Mic, Send, Save, Replace } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ContactPicker } from "@/components/ContactPicker";
 import { type Contact, supabase } from "@/lib/supabase";
@@ -23,25 +23,19 @@ interface Props {
   dictateOnly?: boolean;
 }
 
-type TemplateType = "stepping-stone" | "stepping-stone-long" | "curation" | "waymap" | "richard-noble" | "newsletter";
+type TemplateRow = { id: string; label: string };
 
-const TEMPLATES: { id: TemplateType; label: string }[] = [
-  { id: "stepping-stone", label: "Steppingstone Introduction" },
-  { id: "stepping-stone-long", label: "Steppingstone (long version)" },
-  { id: "curation", label: "Curation Connect Introduction" },
-  { id: "waymap", label: "Waymap Introduction" },
-  { id: "richard-noble", label: "Richard Noble (ThrustWSH)" },
-  { id: "newsletter", label: "Newsletter Pitch" },
-];
+const TEMPLATE_PLACEHOLDER =
+  "Add anything specific that should shape this email: a recent meeting, a shared connection, why this person specifically. The system will fill in the standard structure - you just add the personal context.";
 
-const TEMPLATE_PLACEHOLDERS: Record<TemplateType, string> = {
-  "stepping-stone": "e.g. We met at the Langham yesterday, he runs a hospitality group and is interested in growing his profile. Lunch booked for next Thursday.",
-  "stepping-stone-long": "e.g. James at Curation, we collaborated on Waymap recently which went well. Worth mentioning we may collaborate on AI introductions and revenue-sharing arrangements.",
-  "curation": "e.g. She chairs JPMorgan Claverhouse, we had lunch last week, she's interested but has to put it to the board next month.",
-  "waymap": "e.g. Introduced by James Blomfield, runs hotels in central London, focus should be on the built environment use case.",
-  "richard-noble": "e.g. Scottish entrepreneur, interested in sponsorship, met him at David Yarrow's exhibition.",
-  "newsletter": "e.g. Owner of a Cotswolds wine estate, I think they'd be a fit for the Christmas issue, mention Hayley Ferguson at Hanikon as a precedent.",
-};
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "template";
+}
 
 function getRecognition(): any | null {
   if (typeof window === "undefined") return null;
@@ -53,7 +47,9 @@ function getRecognition(): any | null {
 export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOnly = false }: Props) {
   const [tab, setTab] = useState<"template" | "dictate">(dictateOnly ? "dictate" : "template");
   const [contact, setContact] = useState<Contact | null>(lockedContact ?? null);
-  const [template, setTemplate] = useState<TemplateType | null>(null);
+  const [template, setTemplate] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<TemplateRow[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
   const [personalisation, setPersonalisation] = useState("");
   const [transcript, setTranscript] = useState("");
   const [draft, setDraft] = useState("");
@@ -65,6 +61,15 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
   const [connectedAccounts, setConnectedAccounts] = useState<GoogleAccountRow[]>([]);
   const [fromAccount, setFromAccount] = useState<string>("");
   const { toast } = useToast();
+
+  // Save/replace template dialogs
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [savingTpl, setSavingTpl] = useState(false);
+  const [replaceOpen, setReplaceOpen] = useState(false);
+  const [replaceTargetId, setReplaceTargetId] = useState<string>("");
+  const [replaceConfirm, setReplaceConfirm] = useState(false);
+  const [replacingTpl, setReplacingTpl] = useState(false);
 
   // hold-to-record
   const [recording, setRecording] = useState(false);
@@ -82,6 +87,21 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
   useEffect(() => {
     if (open) setContact(lockedContact ?? null);
   }, [open, lockedContact]);
+
+  const loadTemplates = async () => {
+    setTemplatesLoading(true);
+    const { data, error } = await supabase
+      .from("email_templates")
+      .select("id, label")
+      .order("label");
+    if (!error && data) setTemplates(data as TemplateRow[]);
+    setTemplatesLoading(false);
+  };
+
+  useEffect(() => {
+    if (open) loadTemplates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -105,6 +125,78 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
     setSending(false);
     setFeedbackSaved(false);
     if (!lockedContact) setContact(null);
+  };
+
+  const saveAsNewTemplate = async () => {
+    const label = saveName.trim();
+    if (!label) { toast({ title: "Give the template a name", variant: "destructive" }); return; }
+    if (!draft.trim()) { toast({ title: "Draft is empty", variant: "destructive" }); return; }
+    setSavingTpl(true);
+    try {
+      const baseId = slugify(label);
+      // Collision check — append -2, -3, … until unique.
+      const { data: existing } = await supabase
+        .from("email_templates")
+        .select("id")
+        .like("id", `${baseId}%`);
+      const taken = new Set(((existing || []) as { id: string }[]).map((r) => r.id));
+      let id = baseId;
+      let n = 2;
+      while (taken.has(id)) { id = `${baseId}-${n++}`; }
+
+      const { error } = await supabase.from("email_templates").insert({
+        id,
+        label,
+        subject_template: subject || "",
+        body_template: draft,
+        guidance: "",
+      });
+      if (error) throw error;
+      toast({ title: "Template saved", description: label });
+      setSaveOpen(false);
+      setSaveName("");
+      await loadTemplates();
+      setTemplate(id);
+    } catch (e) {
+      toast({
+        title: "Couldn't save template",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTpl(false);
+    }
+  };
+
+  const replaceExistingTemplate = async () => {
+    if (!replaceTargetId) { toast({ title: "Pick a template to replace", variant: "destructive" }); return; }
+    if (!draft.trim()) { toast({ title: "Draft is empty", variant: "destructive" }); return; }
+    setReplacingTpl(true);
+    try {
+      const { error } = await supabase
+        .from("email_templates")
+        .update({
+          subject_template: subject || "",
+          body_template: draft,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", replaceTargetId);
+      if (error) throw error;
+      const replaced = templates.find((t) => t.id === replaceTargetId);
+      toast({ title: "Template replaced", description: replaced?.label ?? replaceTargetId });
+      setReplaceOpen(false);
+      setReplaceConfirm(false);
+      setReplaceTargetId("");
+      await loadTemplates();
+    } catch (e) {
+      toast({
+        title: "Couldn't replace template",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setReplacingTpl(false);
+    }
   };
 
   const sendToDrafts = async () => {
@@ -291,7 +383,10 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
 
           <TabsContent value="template" className="space-y-3">
             <div className="grid grid-cols-2 gap-2 pt-2">
-              {TEMPLATES.map((t) => (
+              {templatesLoading && templates.length === 0 && (
+                <div className="col-span-2 text-xs text-muted-foreground italic py-2">Loading templates…</div>
+              )}
+              {templates.map((t) => (
                 <button
                   key={t.id}
                   type="button"
@@ -316,7 +411,7 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
                   <Textarea
                     value={personalisation}
                     onChange={(e) => setPersonalisation(e.target.value)}
-                    placeholder={template ? TEMPLATE_PLACEHOLDERS[template] : "Add anything specific that should shape this email: a recent meeting, a shared connection, why this person specifically. The system will fill in the standard structure - you just add the personal context."}
+                    placeholder={TEMPLATE_PLACEHOLDER}
                     rows={5}
                   />
                 </div>
@@ -409,6 +504,24 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
                 {sending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
                 Send to Gmail Drafts
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => { setSaveName(""); setSaveOpen(true); }}
+                disabled={!draft.trim()}
+              >
+                <Save className="h-4 w-4 mr-1" /> Save as new template
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => { setReplaceTargetId(""); setReplaceConfirm(false); setReplaceOpen(true); }}
+                disabled={!draft.trim() || templates.length === 0}
+              >
+                <Replace className="h-4 w-4 mr-1" /> Replace existing template
+              </Button>
             </div>
             <DraftFeedback
               mode="single"
@@ -430,6 +543,105 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Save as new template */}
+      <Dialog open={saveOpen} onOpenChange={(v) => { setSaveOpen(v); if (!v) setSaveName(""); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-teal">Save as new template</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Template name</Label>
+              <Input
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                placeholder="e.g. Family-office cold intro"
+                autoFocus
+              />
+              {saveName.trim() && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  ID: <code>{slugify(saveName)}</code> (a numeric suffix is added if taken)
+                </p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSaveOpen(false)}>Cancel</Button>
+            <Button
+              className="bg-teal hover:bg-teal/90 text-white"
+              onClick={saveAsNewTemplate}
+              disabled={savingTpl || !saveName.trim()}
+            >
+              {savingTpl && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Replace existing template */}
+      <Dialog
+        open={replaceOpen}
+        onOpenChange={(v) => {
+          setReplaceOpen(v);
+          if (!v) { setReplaceTargetId(""); setReplaceConfirm(false); }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-teal">Replace existing template</DialogTitle>
+          </DialogHeader>
+          {!replaceConfirm ? (
+            <div className="space-y-3">
+              <div>
+                <Label>Template to overwrite</Label>
+                <select
+                  value={replaceTargetId}
+                  onChange={(e) => setReplaceTargetId(e.target.value)}
+                  className="h-10 rounded-md border bg-background px-3 text-sm w-full mt-1"
+                >
+                  <option value="">Pick a template…</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>{t.label}</option>
+                  ))}
+                </select>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setReplaceOpen(false)}>Cancel</Button>
+                <Button
+                  className="bg-teal hover:bg-teal/90 text-white"
+                  onClick={() => setReplaceConfirm(true)}
+                  disabled={!replaceTargetId}
+                >
+                  Continue
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="text-sm">
+                This will overwrite{" "}
+                <strong className="text-ink">
+                  {templates.find((t) => t.id === replaceTargetId)?.label ?? replaceTargetId}
+                </strong>{" "}
+                with the current draft. This cannot be undone.
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setReplaceConfirm(false)}>Back</Button>
+                <Button
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  onClick={replaceExistingTemplate}
+                  disabled={replacingTpl}
+                >
+                  {replacingTpl && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Overwrite template
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
