@@ -44,6 +44,12 @@ export default function ContactDetail() {
   const [savingLink, setSavingLink] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const [editingTop, setEditingTop] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editRole, setEditRole] = useState("");
+  const [editCompany, setEditCompany] = useState("");
+  const [savingTop, setSavingTop] = useState(false);
+
   const load = useCallback(async () => {
     if (!id) return;
     const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
