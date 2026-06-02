@@ -42,6 +42,7 @@ interface EmailTemplate {
   subject_template: string;
   body_template: string;
   guidance: string;
+  treat_as_guidance?: boolean;
 }
 
 function formatInteractions(items?: InteractionSummary[]): string {
@@ -141,6 +142,61 @@ function buildTemplateUserMessage(body: RequestBody, template: EmailTemplate, fb
     `5. DO NOT use phrases banned in the system_context (em dashes, "I hope this finds you well", etc).`,
     `6. Use the personalisation provided by Will to shape the [OPENING ANCHOR] and [PERSONALISED CLOSE] sections.`,
     `7. Output the email ready to send. No preamble, no commentary, just the email body starting with the subject line.`,
+  ];
+
+  if (fb.contactSpecific.length > 0) {
+    const lines = fb.contactSpecific.map((r) => `- ${r.outcome}${r.edit_notes ? `: ${r.edit_notes}` : ""}`).join("\n");
+    parts.push("", `PREVIOUS FEEDBACK FOR THIS CONTACT - APPLY THESE LEARNINGS:`, lines);
+  }
+
+  return parts.filter(Boolean).join("\n");
+}
+
+function buildGuidanceTemplateUserMessage(body: RequestBody, template: EmailTemplate, fb: FeedbackContext): string {
+  const c = body.contact!;
+  const register = detectRelationshipRegister(c);
+  const signOff = buildSignOff(register);
+
+  const parts: string[] = [
+    `Draft an email from Will Meadon to ${c.name}${c.company ? ` at ${c.company}` : ""}.`,
+    ``,
+    `REFERENCE TEMPLATE (FOR TONE & STRUCTURE ONLY — NOT VERBATIM): "${template.label}"`,
+    ``,
+    `The reference below is a previous email Will sent to a DIFFERENT person. Use it ONLY to learn:`,
+    `- Cadence, sentence length, paragraph rhythm`,
+    `- Overall structure (opener → middle → close)`,
+    `- Tone and register`,
+    `- Sign-off style`,
+    ``,
+    `DO NOT copy any contact-specific content from it: names, companies, personal anecdotes, shared history, specific references, mutual contacts, dates, or any concrete detail tied to the original recipient. Treat all such specifics as illustrative only — strip them out and replace with content appropriate to ${c.name}.`,
+    ``,
+    `─────────── REFERENCE EMAIL ───────────`,
+    template.subject_template ? `Subject: ${template.subject_template}` : "",
+    ``,
+    template.body_template,
+    `───────────────────────────────────────`,
+    ``,
+    `WRITE A NEW EMAIL TO ${c.name} that mirrors the structure and voice above, but whose content is built from:`,
+    ``,
+    `PERSONALISATION FROM WILL: ${body.brief || "(no specific personalisation provided)"}`,
+    ``,
+    `CONTACT NOTES: ${c.notes ?? "no notes on file"}`,
+    c.how_we_met ? `HOW THEY MET: ${c.how_we_met}` : "",
+    c.status ? `STATUS: ${c.status}` : "",
+    c.segment ? `SEGMENT: ${c.segment}` : "",
+    ``,
+    `INTERACTION HISTORY:`,
+    formatInteractions(c.recent_interactions),
+    ``,
+    `RELATIONSHIP REGISTER: ${register}`,
+    `DEFAULT SIGN OFF: ${signOff}`,
+    ``,
+    `CRITICAL RULES:`,
+    `1. Never carry a name, company, or personal reference from the reference email into the new draft.`,
+    `2. If you have nothing recipient-specific to say in a slot the reference fills with an anecdote, write a generic-but-warm line instead — do not invent details.`,
+    `3. Match length within ±25% of the reference unless the brief clearly warrants more or less.`,
+    `4. Follow voice rules from system_context (no em dashes, no "I hope this finds you well", etc).`,
+    `5. Output the email ready to send, starting with the subject line. No preamble, no commentary.`,
   ];
 
   if (fb.contactSpecific.length > 0) {
