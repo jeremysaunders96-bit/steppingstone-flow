@@ -150,6 +150,7 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
         subject_template: subject || "",
         body_template: draft,
         guidance: "",
+        treat_as_guidance: true,
       });
       if (error) throw error;
       toast({ title: "Template saved", description: label });

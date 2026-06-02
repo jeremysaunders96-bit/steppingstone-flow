@@ -58,6 +58,7 @@ export type Database = {
           id: string
           label: string
           subject_template: string
+          treat_as_guidance: boolean
           updated_at: string
         }
         Insert: {
@@ -67,6 +68,7 @@ export type Database = {
           id: string
           label: string
           subject_template: string
+          treat_as_guidance?: boolean
           updated_at?: string
         }
         Update: {
@@ -76,6 +78,7 @@ export type Database = {
           id?: string
           label?: string
           subject_template?: string
+          treat_as_guidance?: boolean
           updated_at?: string
         }
         Relationships: []
