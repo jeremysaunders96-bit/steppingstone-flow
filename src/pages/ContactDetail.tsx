@@ -48,6 +48,9 @@ export default function ContactDetail() {
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState("");
   const [editCompany, setEditCompany] = useState("");
+  const [editFund, setEditFund] = useState("");
+  const [editBoard, setEditBoard] = useState("");
+  const [editCustom, setEditCustom] = useState<Record<string, string>>({});
   const [savingTop, setSavingTop] = useState(false);
 
   const load = useCallback(async () => {
