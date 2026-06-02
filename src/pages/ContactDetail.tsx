@@ -134,6 +134,12 @@ export default function ContactDetail() {
     setEditName(c.full_name);
     setEditRole(c.role || "");
     setEditCompany(c.company || "");
+    setEditFund(c.fund || "");
+    setEditBoard(c.board || "");
+    const cf = (c.custom_fields || {}) as Record<string, string>;
+    const seeded: Record<string, string> = {};
+    for (const k of customKeys) seeded[k] = cf[k] || "";
+    setEditCustom(seeded);
     setEditingTop(true);
   };
 
@@ -142,13 +148,29 @@ export default function ContactDetail() {
     setEditName("");
     setEditRole("");
     setEditCompany("");
+    setEditFund("");
+    setEditBoard("");
+    setEditCustom({});
   };
 
   const saveTop = async () => {
     if (!id || !editName.trim()) return;
     setSavingTop(true);
+    const mergedCustom: Record<string, string> = { ...(c?.custom_fields || {}) };
+    for (const [k, v] of Object.entries(editCustom)) {
+      const val = v.trim();
+      if (val) mergedCustom[k] = val;
+      else delete mergedCustom[k];
+    }
     const { error } = await supabase.from("contacts")
-      .update({ full_name: editName.trim(), role: editRole.trim() || null, company: editCompany.trim() || null })
+      .update({
+        full_name: editName.trim(),
+        role: editRole.trim() || null,
+        company: editCompany.trim() || null,
+        fund: editFund.trim() || null,
+        board: editBoard.trim() || null,
+        custom_fields: mergedCustom,
+      })
       .eq("id", id);
     setSavingTop(false);
     if (error) { toast.error(error.message); return; }
