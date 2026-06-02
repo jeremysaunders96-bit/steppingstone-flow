@@ -500,7 +500,9 @@ Deno.serve(async (req) => {
       userMessage = buildDictationUserMessage(body, { contactSpecific, recentEdited, dictationExamples });
     } else if (template) {
       branch = "template";
-      userMessage = buildTemplateUserMessage(body, template, { contactSpecific, recentEdited, dictationExamples });
+      userMessage = template.treat_as_guidance
+        ? buildGuidanceTemplateUserMessage(body, template, { contactSpecific, recentEdited, dictationExamples })
+        : buildTemplateUserMessage(body, template, { contactSpecific, recentEdited, dictationExamples });
     } else {
       branch = "general";
       userMessage = buildGeneralUserMessage(body, { contactSpecific, recentEdited, dictationExamples });
@@ -509,6 +511,7 @@ Deno.serve(async (req) => {
       branch,
       templateRequested: body.templateType ?? null,
       templateLoaded: !!template,
+      treatAsGuidance: !!template?.treat_as_guidance,
       userMessageLength: userMessage.length,
     });
     if (debug) {
