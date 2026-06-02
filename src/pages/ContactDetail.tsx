@@ -164,12 +164,53 @@ export default function ContactDetail() {
 
       <section className="card-soft p-6 md:p-8">
         <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="min-w-0">
-            <h1 className="font-display text-3xl text-ink">{c.full_name}</h1>
-            {(c.role || c.company) && (
-              <p className="text-muted-foreground mt-1">{[c.role, c.company].filter(Boolean).join(" · ")}</p>
+          <div className="min-w-0 flex-1">
+            {!editingTop ? (
+              <>
+                <h1 className="font-display text-3xl text-ink">{c.full_name}</h1>
+                {(c.role || c.company) && (
+                  <p className="text-muted-foreground mt-1">{[c.role, c.company].filter(Boolean).join(" · ")}</p>
+                )}
+                <div className="mt-2 flex items-center gap-3">
+                  <StatusBadge status={c.status} />
+                  <button onClick={startEditTop} className="inline-flex items-center gap-1 text-xs text-teal hover:underline">
+                    <Pencil className="h-3 w-3" /> Edit
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Input
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  placeholder="Full name"
+                  className="text-lg font-display"
+                />
+                <div className="flex gap-2">
+                  <Input
+                    value={editRole}
+                    onChange={e => setEditRole(e.target.value)}
+                    placeholder="Role"
+                  />
+                  <Input
+                    value={editCompany}
+                    onChange={e => setEditCompany(e.target.value)}
+                    placeholder="Company"
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    className="bg-teal hover:bg-teal/90 text-white"
+                    onClick={saveTop}
+                    disabled={savingTop || !editName.trim()}
+                  >
+                    {savingTop ? "Saving…" : "Save"}
+                  </Button>
+                  <button onClick={cancelEditTop} className="text-xs text-muted-foreground hover:text-ink">Cancel</button>
+                </div>
+              </div>
             )}
-            <div className="mt-2"><StatusBadge status={c.status} /></div>
           </div>
           <div className="flex items-center gap-3">
             <div className="inline-flex rounded-md overflow-hidden shadow-sm">
