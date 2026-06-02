@@ -63,7 +63,14 @@ export interface ActionItem {
   created_at: string;
 }
 
-export type DealStage = "active" | "progressing" | "stalled" | "done";
+export type DealStage =
+  | "active"
+  | "progressing"
+  | "stalled"
+  | "done"
+  | "introduced"
+  | "led-somewhere"
+  | "gone-cold";
 export type DealType =
   | "capital-raise"
   | "introduction-mandate"
