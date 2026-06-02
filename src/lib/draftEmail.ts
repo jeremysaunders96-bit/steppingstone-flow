@@ -49,7 +49,7 @@ type DraftSinglePayload = {
   brief: string;
   account: string;
   contact: ContactBrief;
-  templateType?: "stepping-stone" | "stepping-stone-long" | "curation" | "waymap" | "richard-noble" | "newsletter";
+  templateType?: string;
 };
 
 type DraftIntroPayload = {
