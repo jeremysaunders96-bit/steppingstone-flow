@@ -10,8 +10,33 @@ const REQUIRED_SCOPES = [
   "https://www.googleapis.com/auth/userinfo.email",
 ];
 
+const STATE_COOKIE_NAME = "g_oauth_state";
+
+function readCookie(header: string | null, name: string): string | null {
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const [k, ...rest] = part.trim().split("=");
+    if (k === name) return rest.join("=");
+  }
+  return null;
+}
+
+function clearStateCookie(): string {
+  return [
+    `${STATE_COOKIE_NAME}=`,
+    "Path=/functions/v1/google-oauth-callback",
+    "Max-Age=0",
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax",
+  ].join("; ");
+}
+
 function redirectTo(url: string): Response {
-  return new Response(null, { status: 302, headers: { ...corsHeaders, location: url } });
+  return new Response(null, {
+    status: 302,
+    headers: { ...corsHeaders, location: url, "set-cookie": clearStateCookie() },
+  });
 }
 
 function dashboardUrl(): string {
@@ -33,6 +58,16 @@ Deno.serve(async (req) => {
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state") ?? "";
   const errParam = url.searchParams.get("error");
+
+  // Verify CSRF state against the HttpOnly cookie set by google-oauth-init.
+  // Done before any other work so a forged callback can't trigger side effects.
+  const cookieState = readCookie(req.headers.get("cookie"), STATE_COOKIE_NAME);
+  if (!errParam) {
+    if (!cookieState || !state || cookieState !== state) {
+      const r = finishUrl({ google_error: "state_mismatch", state });
+      return r ? redirectTo(r) : json({ ok: false, error: "state_mismatch" }, { status: 400 });
+    }
+  }
 
   if (errParam) {
     const r = finishUrl({ google_error: errParam, state });

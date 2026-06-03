@@ -8,7 +8,6 @@ import {
   buildConsentUrl,
   isConfigured as isOAuthConfigured,
   KNOWN_ACCOUNTS,
-  verifyReturnedState,
 } from "@/lib/googleOAuth";
 import {
   listConnectedAccounts,
@@ -45,12 +44,12 @@ export default function Settings() {
   useEffect(() => {
     const connected = params.get("google_connected");
     const errorCode = params.get("google_error");
-    const state = params.get("state");
     if (!connected && !errorCode) return;
 
-    if (state && !verifyReturnedState(state)) {
-      toast({ title: "State mismatch", description: "OAuth response didn't match this browser. Try again.", variant: "destructive" });
-    } else if (connected) {
+    // CSRF state is validated server-side against an HttpOnly cookie in
+    // google-oauth-callback. By the time we land here, the flow has already
+    // passed (or failed with google_error=state_mismatch).
+    if (connected) {
       toast({ title: "Connected", description: connected });
     } else if (errorCode) {
       const detail = params.get("detail");

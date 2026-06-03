@@ -1,16 +1,13 @@
-// Builds the Google OAuth consent URL. Phase A: client ID is pasted into .env after
-// the Google Cloud project is created with Will. Until then, isConfigured() returns false.
-
-const SCOPES = [
-  "https://www.googleapis.com/auth/gmail.compose",
-  "https://www.googleapis.com/auth/calendar",
-  "openid",
-  "email",
-  "https://www.googleapis.com/auth/userinfo.email",
-];
+// Google OAuth entry point. The consent URL is now built server-side by the
+// google-oauth-init edge function so the CSRF state nonce can live in an
+// HttpOnly cookie on the supabase.co origin (sessionStorage doesn't survive
+// the app → Google → supabase → app redirect chain on iOS Safari).
 
 export const GOOGLE_OAUTH_REDIRECT_URI =
   "https://depwgcghnvixbtifxtrz.supabase.co/functions/v1/google-oauth-callback";
+
+const OAUTH_INIT_URL =
+  "https://depwgcghnvixbtifxtrz.supabase.co/functions/v1/google-oauth-init";
 
 export const KNOWN_ACCOUNTS: { email: string; label: string }[] = [
   { email: "william@sstone.co.uk", label: "Work (Steppingstone)" },
@@ -26,29 +23,12 @@ export function isConfigured(): boolean {
   return Boolean(getClientId());
 }
 
+// Returns the URL that kicks off the server-side OAuth flow. Navigating the
+// top-level window here lets google-oauth-init set the state cookie on the
+// supabase.co origin before redirecting on to Google.
 export function buildConsentUrl(loginHint?: string): string {
-  const clientId = getClientId();
-  if (!clientId) throw new Error("Google OAuth client ID is not configured.");
-  const nonce = crypto.randomUUID();
-  sessionStorage.setItem("google_oauth_nonce", nonce);
-
-  const params = new URLSearchParams({
-    client_id: clientId,
-    redirect_uri: GOOGLE_OAUTH_REDIRECT_URI,
-    response_type: "code",
-    scope: SCOPES.join(" "),
-    access_type: "offline",
-    prompt: "consent",
-    include_granted_scopes: "true",
-    state: nonce,
-  });
+  const params = new URLSearchParams();
   if (loginHint) params.set("login_hint", loginHint);
-  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-}
-
-export function verifyReturnedState(returnedState: string | null): boolean {
-  if (!returnedState) return false;
-  const expected = sessionStorage.getItem("google_oauth_nonce");
-  sessionStorage.removeItem("google_oauth_nonce");
-  return expected !== null && expected === returnedState;
+  const qs = params.toString();
+  return qs ? `${OAUTH_INIT_URL}?${qs}` : OAUTH_INIT_URL;
 }
