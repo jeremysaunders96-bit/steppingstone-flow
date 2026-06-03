@@ -12,6 +12,7 @@ import CompanyDetail from "./pages/CompanyDetail";
 import LinkedInQueue from "./pages/LinkedInQueue";
 import Deals from "./pages/Deals";
 import Meetings from "./pages/Meetings";
+import CalendarPage from "./pages/Calendar";
 import Unmatched from "./pages/Unmatched";
 import ActionItems from "./pages/ActionItems";
 import Settings from "./pages/Settings";
@@ -33,6 +34,7 @@ const App = () => (
               <Route path="/contacts/:id" element={<ContactDetail />} />
               <Route path="/company/:name" element={<CompanyDetail />} />
               <Route path="/meetings" element={<Meetings />} />
+              <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/action-items" element={<ActionItems />} />
               <Route path="/deals" element={<Deals />} />
               <Route path="/unmatched" element={<Unmatched />} />
