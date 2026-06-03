@@ -49,8 +49,9 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: "oauth_not_configured" }, { status: 500 });
   }
 
-  // Token exchange. redirect_uri must match the one used to initiate the flow exactly.
-  const redirectUri = `${url.origin}${url.pathname}`;
+  // Token exchange. redirect_uri must match the one used to initiate the flow EXACTLY
+  // (byte-for-byte) and must match what's registered in Google Cloud.
+  const redirectUri = "https://depwgcghnvixbtifxtrz.supabase.co/functions/v1/google-oauth-callback";
   const tokenBody = new URLSearchParams({
     code,
     client_id: clientId,
