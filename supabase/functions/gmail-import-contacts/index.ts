@@ -1,6 +1,6 @@
-// One-off import of Google contacts into the contacts table. Pulls from People API
-// connections (the user's saved contacts) and otherContacts (people emailed but not saved).
-// Deduplicates against existing emails so Will's existing notes/edits aren't overwritten.
+// Import of Google contacts into the contacts table. Pulls from People API
+// people.connections.list (the user's saved contacts) and upserts by email so
+// existing rows are merged rather than duplicated.
 
 import { corsHeaders, json, serviceClient, googleFetch } from "../_shared/google.ts";
 
@@ -12,7 +12,6 @@ interface RequestBody {
 interface Person {
   names?: { displayName?: string; givenName?: string; familyName?: string; metadata?: { primary?: boolean } }[];
   emailAddresses?: { value: string; metadata?: { primary?: boolean } }[];
-  phoneNumbers?: { value: string; metadata?: { primary?: boolean } }[];
   organizations?: { name?: string; title?: string; metadata?: { primary?: boolean } }[];
 }
 
@@ -26,7 +25,6 @@ interface NewContact {
   email: string;
   company: string | null;
   role: string | null;
-  phone: string | null;
   source: "gmail-import";
   imported_at: string;
 }
@@ -40,13 +38,11 @@ function personToContact(p: Person): NewContact | null {
     [name?.givenName, name?.familyName].filter(Boolean).join(" ").trim() ||
     email;
   const org = pickPrimary(p.organizations);
-  const phone = pickPrimary(p.phoneNumbers)?.value?.trim() || null;
   return {
     full_name: fullName,
     email,
     company: org?.name?.trim() || null,
     role: org?.title?.trim() || null,
-    phone,
     source: "gmail-import",
     imported_at: new Date().toISOString(),
   };
@@ -57,11 +53,11 @@ async function fetchAllPages(
   accountEmail: string,
   baseUrl: string,
   pageTokenParam: string,
-  resultKey: "connections" | "otherContacts",
+  resultKey: "connections",
 ): Promise<Person[]> {
   const all: Person[] = [];
   let pageToken: string | null = null;
-  for (let i = 0; i < 50; i++) { // guard rail: max 50 pages (~50k contacts)
+  for (let i = 0; i < 50; i++) { // guard rail
     const url = new URL(baseUrl);
     if (pageToken) url.searchParams.set(pageTokenParam, pageToken);
     const res = await googleFetch(supabase, accountEmail, url.toString());
@@ -97,20 +93,13 @@ Deno.serve(async (req) => {
   let people: Person[] = [];
   try {
     const connectionsUrl =
-      "https://people.googleapis.com/v1/people/me/connections?pageSize=1000&personFields=names,emailAddresses,phoneNumbers,organizations";
-    const otherUrl =
-      "https://people.googleapis.com/v1/otherContacts?pageSize=1000&readMask=names,emailAddresses";
-
-    const [connections, other] = await Promise.all([
-      fetchAllPages(supabase, body.account_email, connectionsUrl, "pageToken", "connections"),
-      fetchAllPages(supabase, body.account_email, otherUrl, "pageToken", "otherContacts"),
-    ]);
-    people = [...connections, ...other];
+      "https://people.googleapis.com/v1/people/me/connections?pageSize=1000&personFields=names,emailAddresses,organizations";
+    people = await fetchAllPages(supabase, body.account_email, connectionsUrl, "pageToken", "connections");
   } catch (e) {
     return json({ ok: false, error: "people_api_failed", detail: (e as Error).message }, { status: 502 });
   }
 
-  // Deduplicate within the inbound batch by email (otherContacts often overlaps connections).
+  // Deduplicate within the inbound batch by email.
   const seenInBatch = new Set<string>();
   const candidates: NewContact[] = [];
   for (const p of people) {
@@ -121,16 +110,19 @@ Deno.serve(async (req) => {
     candidates.push(c);
   }
 
-  // Pull existing emails to filter out anything already in contacts.
+  // Pull existing emails so we can report merged vs. newly inserted.
   const { data: existing, error: existingErr } = await supabase
     .from("contacts")
     .select("email")
     .not("email", "is", null);
   if (existingErr) return json({ ok: false, error: existingErr.message }, { status: 500 });
   const existingEmails = new Set(
-    (existing ?? []).map((r) => ((r as { email: string | null }).email ?? "").trim().toLowerCase()).filter(Boolean),
+    (existing ?? [])
+      .map((r) => ((r as { email: string | null }).email ?? "").trim().toLowerCase())
+      .filter(Boolean),
   );
-  const toInsert = candidates.filter((c) => !existingEmails.has(c.email));
+  const newOnes = candidates.filter((c) => !existingEmails.has(c.email));
+  const merged = candidates.length - newOnes.length;
 
   if (body.dry_run) {
     return json({
@@ -138,33 +130,37 @@ Deno.serve(async (req) => {
       dry_run: true,
       fetched: people.length,
       candidates: candidates.length,
-      to_insert: toInsert.length,
-      skipped_existing: candidates.length - toInsert.length,
+      to_insert: newOnes.length,
+      to_merge: merged,
     });
   }
 
-  let imported = 0;
-  // Insert in chunks of 500 to avoid large request payloads.
-  for (let i = 0; i < toInsert.length; i += 500) {
-    const chunk = toInsert.slice(i, i + 500);
-    const { error: insErr } = await supabase.from("contacts").insert(chunk);
-    if (insErr) {
+  // Upsert by email so existing rows merge (company/role/full_name refreshed)
+  // and new rows are inserted. Chunk to keep payloads reasonable.
+  let upserted = 0;
+  for (let i = 0; i < candidates.length; i += 500) {
+    const chunk = candidates.slice(i, i + 500);
+    const { error: upErr } = await supabase
+      .from("contacts")
+      .upsert(chunk, { onConflict: "email" });
+    if (upErr) {
       return json({
         ok: false,
-        error: "insert_failed",
-        detail: insErr.message,
-        imported,
-        remaining: toInsert.length - imported,
+        error: "upsert_failed",
+        detail: upErr.message,
+        processed: upserted,
+        remaining: candidates.length - upserted,
       }, { status: 500 });
     }
-    imported += chunk.length;
+    upserted += chunk.length;
   }
 
   return json({
     ok: true,
     fetched: people.length,
     candidates: candidates.length,
-    imported,
-    skipped_existing: candidates.length - imported,
+    imported: newOnes.length,
+    merged,
+    upserted,
   });
 });
