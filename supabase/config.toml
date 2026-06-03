@@ -15,9 +15,6 @@ verify_jwt = false
 [functions.gcal-today-events]
 verify_jwt = false
 
-[functions.gcal-range-events]
-verify_jwt = false
-
 [functions.gcal-create-event]
 verify_jwt = false
 

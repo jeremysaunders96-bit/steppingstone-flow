@@ -14,7 +14,6 @@ interface CalListEntry {
 
 interface GcalEvent {
   id: string;
-  iCalUID?: string;
   summary?: string;
   description?: string;
   location?: string;
@@ -29,12 +28,10 @@ interface GcalEvent {
 
 interface NormalizedEvent {
   id: string;
-  ical_uid: string | null;
   account_email: string;
   calendar_id: string;
   calendar_summary: string;
   calendar_color: string | null;
-  is_primary: boolean;
   title: string;
   start: string;
   end: string;
@@ -42,14 +39,6 @@ interface NormalizedEvent {
   location: string | null;
   attendees: { email: string; displayName?: string }[];
   html_link: string | null;
-}
-
-interface NormalizedCalendar {
-  account_email: string;
-  calendar_id: string;
-  summary: string;
-  primary: boolean;
-  background_color: string | null;
 }
 
 function todayRangeIso(): { timeMin: string; timeMax: string } {
@@ -83,7 +72,6 @@ Deno.serve(async (req) => {
 
   const { timeMin, timeMax } = todayRangeIso();
   const events: NormalizedEvent[] = [];
-  const calendars: NormalizedCalendar[] = [];
   const errors: { account_email: string; error: string }[] = [];
 
   for (const accountEmail of accounts) {
@@ -100,13 +88,6 @@ Deno.serve(async (req) => {
       const calList = await calListRes.json() as { items: CalListEntry[] };
 
       for (const cal of (calList.items ?? []).filter((c) => !isSkippableCalendar(c))) {
-        calendars.push({
-          account_email: accountEmail,
-          calendar_id: cal.id,
-          summary: cal.summary,
-          primary: Boolean(cal.primary),
-          background_color: cal.backgroundColor ?? null,
-        });
         const evUrl = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events`);
         evUrl.searchParams.set("timeMin", timeMin);
         evUrl.searchParams.set("timeMax", timeMax);
@@ -128,12 +109,10 @@ Deno.serve(async (req) => {
           const allDay = Boolean(e.start?.date && !e.start?.dateTime);
           events.push({
             id: e.id,
-            ical_uid: e.iCalUID ?? null,
             account_email: accountEmail,
             calendar_id: cal.id,
             calendar_summary: cal.summary,
             calendar_color: cal.backgroundColor ?? null,
-            is_primary: Boolean(cal.primary),
             title: e.summary ?? "(no title)",
             start: startStr,
             end: endStr,
@@ -150,5 +129,5 @@ Deno.serve(async (req) => {
   }
 
   events.sort((a, b) => a.start.localeCompare(b.start));
-  return json({ ok: true, events, accounts, calendars, errors });
+  return json({ ok: true, events, accounts, errors });
 });

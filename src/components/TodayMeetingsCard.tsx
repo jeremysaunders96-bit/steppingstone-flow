@@ -1,19 +1,32 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CalendarDays, Loader2, MapPin, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
-import {
-  CalendarEvent,
-  CalendarMeta,
-  dedupeEvents,
-  filterByEnabledCalendars,
-  loadExcludedCalendars,
-  saveExcludedCalendars,
-  tagFor,
-} from "@/lib/calendarEvents";
-import { CalendarSelector } from "@/components/CalendarSelector";
+
+interface TodayEvent {
+  id: string;
+  account_email: string;
+  calendar_id: string;
+  calendar_summary: string;
+  calendar_color: string | null;
+  title: string;
+  start: string;
+  end: string;
+  all_day: boolean;
+  location: string | null;
+  attendees: { email: string; displayName?: string }[];
+  html_link: string | null;
+}
+
+type Tag = "work" | "personal";
+
+function tagFor(accountEmail: string): Tag {
+  if (accountEmail === "willmeadon@gmail.com") return "personal";
+  if (accountEmail === "william@sstone.co.uk") return "work";
+  return accountEmail.endsWith("@sstone.co.uk") ? "work" : "personal";
+}
 
 function formatTime(iso: string, allDay: boolean): string {
   if (allDay) return "All day";
@@ -22,9 +35,7 @@ function formatTime(iso: string, allDay: boolean): string {
 }
 
 export function TodayMeetingsCard() {
-  const [events, setEvents] = useState<CalendarEvent[] | null>(null);
-  const [calendars, setCalendars] = useState<CalendarMeta[]>([]);
-  const [excluded, setExcluded] = useState<Set<string>>(() => loadExcludedCalendars());
+  const [events, setEvents] = useState<TodayEvent[] | null>(null);
   const [accountsConnected, setAccountsConnected] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,14 +50,12 @@ export function TodayMeetingsCard() {
         if (invokeErr) throw invokeErr;
         const result = data as {
           ok: boolean;
-          events: CalendarEvent[];
+          events: TodayEvent[];
           accounts: string[];
-          calendars?: CalendarMeta[];
           errors?: { account_email: string; error: string }[];
         };
         if (!result.ok) throw new Error("Calendar fetch failed");
         setEvents(result.events);
-        setCalendars(result.calendars ?? []);
         setAccountsConnected(result.accounts.length);
       } catch (e) {
         if (cancelled) return;
@@ -57,16 +66,6 @@ export function TodayMeetingsCard() {
     })();
     return () => { cancelled = true; };
   }, []);
-
-  const visibleEvents = useMemo(
-    () => (events ? dedupeEvents(filterByEnabledCalendars(events, excluded)) : []),
-    [events, excluded],
-  );
-
-  const handleExcludedChange = (next: Set<string>) => {
-    setExcluded(next);
-    saveExcludedCalendars(next);
-  };
 
   if (loading) {
     return (
@@ -92,35 +91,22 @@ export function TodayMeetingsCard() {
     );
   }
 
-  if (!events || visibleEvents.length === 0) {
+  if (!events || events.length === 0) {
     return (
-      <>
-        {calendars.length > 0 && (
-          <div className="flex justify-end mb-2">
-            <CalendarSelector calendars={calendars} excluded={excluded} onChange={handleExcludedChange} />
-          </div>
-        )}
-        <div className="card-soft py-8 px-6 flex flex-col items-center text-center gap-2">
-          <CalendarDays className="h-8 w-8 text-muted-foreground/60" strokeWidth={1.5} />
-          <p className="text-sm italic text-muted-foreground">Nothing on the calendar today.</p>
-        </div>
-      </>
+      <div className="card-soft py-8 px-6 flex flex-col items-center text-center gap-2">
+        <CalendarDays className="h-8 w-8 text-muted-foreground/60" strokeWidth={1.5} />
+        <p className="text-sm italic text-muted-foreground">Nothing on the calendar today.</p>
+      </div>
     );
   }
 
   return (
-    <>
-      {calendars.length > 0 && (
-        <div className="flex justify-end mb-2">
-          <CalendarSelector calendars={calendars} excluded={excluded} onChange={handleExcludedChange} />
-        </div>
-      )}
-      <div className="card-soft divide-y">
-      {visibleEvents.map((e) => {
+    <div className="card-soft divide-y">
+      {events.map((e) => {
         const tag = tagFor(e.account_email);
         return (
           <a
-            key={e.ical_uid ?? `${e.account_email}-${e.id}`}
+            key={`${e.account_email}-${e.id}`}
             href={e.html_link ?? "#"}
             target="_blank"
             rel="noreferrer"
@@ -168,7 +154,6 @@ export function TodayMeetingsCard() {
           </a>
         );
       })}
-      </div>
-    </>
+    </div>
   );
 }
