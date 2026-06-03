@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, ArrowUp, ArrowDown, Plus, X } from "lucide-react";
+import { Search, ArrowUp, ArrowDown, Plus, X, Filter } from "lucide-react";
 import { supabase, type Contact } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatShortDate } from "@/lib/format";
 import { AddContactModal } from "@/components/modals/AddContactModal";
@@ -26,6 +28,11 @@ const FIXED_COLUMNS: ColumnKey[] = [
 const DEFAULT_VISIBLE: string[] = ["full_name", "company", "role", "status", "last_contact_date"];
 const VISIBLE_STORAGE = "contacts.visibleCols.v1";
 const CUSTOM_STORAGE = "contacts.customCols.v1";
+const FILTERS_STORAGE = "contacts.filters.v1";
+
+// Columns that get a multi-select dropdown filter. full_name is handled by
+// the global search box; status/last_contact_date aren't useful as picklists.
+const FILTERABLE_FIXED = new Set(["company", "role", "fund", "board"]);
 
 function getCellValue(c: Contact, col: ColumnKey): string | null {
   if (col.kind === "custom") {
@@ -64,9 +71,16 @@ export default function Contacts() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [showColPicker, setShowColPicker] = useState(false);
   const [newColName, setNewColName] = useState("");
+  const [filters, setFilters] = useState<Record<string, string[]>>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(FILTERS_STORAGE) || "{}");
+      return v && typeof v === "object" ? v : {};
+    } catch { return {}; }
+  });
 
   useEffect(() => { localStorage.setItem(CUSTOM_STORAGE, JSON.stringify(customCols)); }, [customCols]);
   useEffect(() => { localStorage.setItem(VISIBLE_STORAGE, JSON.stringify(visibleKeys)); }, [visibleKeys]);
+  useEffect(() => { localStorage.setItem(FILTERS_STORAGE, JSON.stringify(filters)); }, [filters]);
 
   const allColumns: ColumnKey[] = useMemo(
     () => [...FIXED_COLUMNS, ...customCols.map(c => ({ kind: "custom" as const, key: c.key, label: c.label }))],
@@ -78,6 +92,27 @@ export default function Contacts() {
   );
   const sortCol = useMemo(() => allColumns.find(c => c.key === sortKey) || FIXED_COLUMNS[0], [allColumns, sortKey]);
 
+  const filterableCols = useMemo<ColumnKey[]>(
+    () => allColumns.filter(c => c.kind === "custom" || FILTERABLE_FIXED.has(c.key)),
+    [allColumns]
+  );
+
+  // Distinct non-empty values per filterable column, sorted alphabetically.
+  const distinctValues = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const col of filterableCols) {
+      const set = new Set<string>();
+      for (const r of rows) {
+        const v = getCellValue(r, col);
+        if (v != null && String(v).trim() !== "") set.add(String(v));
+      }
+      map[col.key] = Array.from(set).sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: "base", numeric: true })
+      );
+    }
+    return map;
+  }, [filterableCols, rows]);
+
   const load = async () => {
     setLoading(true);
     const { data } = await supabase.from("contacts").select("*").order("full_name");
@@ -88,13 +123,23 @@ export default function Contacts() {
 
   const filteredSorted = useMemo(() => {
     const s = q.trim().toLowerCase();
+    const activeFilterEntries = Object.entries(filters).filter(([, vals]) => vals && vals.length > 0);
     const filtered = rows.filter(r => {
-      if (!s) return true;
-      return (
-        r.full_name.toLowerCase().includes(s) ||
-        (r.company || "").toLowerCase().includes(s) ||
-        (r.role || "").toLowerCase().includes(s)
-      );
+      if (s) {
+        const hit =
+          r.full_name.toLowerCase().includes(s) ||
+          (r.company || "").toLowerCase().includes(s) ||
+          (r.role || "").toLowerCase().includes(s);
+        if (!hit) return false;
+      }
+      for (const [key, vals] of activeFilterEntries) {
+        const col = filterableCols.find(c => c.key === key);
+        if (!col) continue;
+        const cellRaw = getCellValue(r, col);
+        const cell = cellRaw == null ? "" : String(cellRaw);
+        if (!vals.includes(cell)) return false;
+      }
+      return true;
     });
     const dir = sortDir === "asc" ? 1 : -1;
     return [...filtered].sort((a, b) => {
@@ -109,7 +154,31 @@ export default function Contacts() {
       // stable tiebreaker on name so groups (e.g. same company) read predictably
       return a.full_name.localeCompare(b.full_name, undefined, { sensitivity: "base" });
     });
-  }, [rows, q, sortCol, sortDir]);
+  }, [rows, q, sortCol, sortDir, filters, filterableCols]);
+
+  const activeFilters = useMemo(
+    () => Object.entries(filters).filter(([, v]) => v && v.length > 0),
+    [filters]
+  );
+  const hasActiveFilters = activeFilters.length > 0 || q.trim() !== "";
+
+  const toggleFilterValue = (key: string, value: string) => {
+    setFilters(prev => {
+      const cur = prev[key] || [];
+      const next = cur.includes(value) ? cur.filter(v => v !== value) : [...cur, value];
+      const out = { ...prev };
+      if (next.length === 0) delete out[key]; else out[key] = next;
+      return out;
+    });
+  };
+  const clearFilter = (key: string) => {
+    setFilters(prev => {
+      const out = { ...prev };
+      delete out[key];
+      return out;
+    });
+  };
+  const clearAllFilters = () => { setFilters({}); setQ(""); };
 
   const toggleSort = (key: string) => {
     if (sortKey === key) setSortDir(d => (d === "asc" ? "desc" : "asc"));
@@ -138,6 +207,12 @@ export default function Contacts() {
     setCustomCols(prev => prev.filter(c => c.key !== key));
     setVisibleKeys(prev => prev.filter(k => k !== key));
     if (sortKey === key) { setSortKey("full_name"); setSortDir("asc"); }
+    setFilters(prev => {
+      if (!(key in prev)) return prev;
+      const out = { ...prev };
+      delete out[key];
+      return out;
+    });
   };
 
   return (
@@ -145,7 +220,9 @@ export default function Contacts() {
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-display text-3xl text-teal">Contacts</h1>
-          <p className="text-sm text-muted-foreground mt-1">{rows.length} total</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Showing {filteredSorted.length} of {rows.length}
+          </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={()=>setShowColPicker(v=>!v)}>Columns</Button>
@@ -154,9 +231,100 @@ export default function Contacts() {
         </div>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input className="pl-9" placeholder="Search name, company, role…" value={q} onChange={e=>setQ(e.target.value)} />
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative max-w-md flex-1 min-w-[220px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input className="pl-9" placeholder="Search name, company, role…" value={q} onChange={e=>setQ(e.target.value)} />
+          </div>
+          {filterableCols.map(col => {
+            const selected = filters[col.key] || [];
+            const options = distinctValues[col.key] || [];
+            const active = selected.length > 0;
+            return (
+              <Popover key={col.key}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={active ? "border-teal text-teal" : ""}
+                  >
+                    <Filter className="h-3 w-3 mr-1" />
+                    {col.label}
+                    {active && (
+                      <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-teal text-white text-[10px] leading-none">
+                        {selected.length}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-64 p-0">
+                  <div className="flex items-center justify-between px-3 py-2 border-b">
+                    <span className="text-xs uppercase tracking-wide text-muted-foreground">{col.label}</span>
+                    <button
+                      className="text-xs text-muted-foreground hover:text-ink disabled:opacity-40"
+                      onClick={()=>clearFilter(col.key)}
+                      disabled={!active}
+                    >
+                      All
+                    </button>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto py-1">
+                    {options.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-muted-foreground italic">No values</div>
+                    ) : options.map(val => {
+                      const checked = selected.includes(val);
+                      return (
+                        <label
+                          key={val}
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/40 cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={()=>toggleFilterValue(col.key, val)}
+                          />
+                          <span className="truncate">{val}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            );
+          })}
+        </div>
+
+        {hasActiveFilters && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Filters:</span>
+            {q.trim() && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-muted text-ink">
+                search: "{q.trim()}"
+                <button onClick={()=>setQ("")} className="hover:text-destructive">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {activeFilters.map(([key, vals]) => {
+              const col = filterableCols.find(c => c.key === key);
+              if (!col) return null;
+              return (
+                <span key={key} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-muted text-ink">
+                  {col.label}: {vals.length === 1 ? vals[0] : `${vals.length} selected`}
+                  <button onClick={()=>clearFilter(key)} className="hover:text-destructive">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              );
+            })}
+            <button
+              onClick={clearAllFilters}
+              className="ml-1 text-teal hover:underline"
+            >
+              Clear all filters
+            </button>
+          </div>
+        )}
       </div>
 
       {showColPicker && (
