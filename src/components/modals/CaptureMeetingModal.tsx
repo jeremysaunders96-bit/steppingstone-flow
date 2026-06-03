@@ -90,6 +90,13 @@ export function CaptureMeetingModal({
   const baseRef = useRef<string>("");
   const finalChunksRef = useRef<string>("");
   const tickRef = useRef<number | null>(null);
+  // iOS Safari ignores `continuous = true` and auto-ends recognition after a
+  // short pause. We restart from `onend` to keep the session alive until the
+  // user explicitly stops. These refs coordinate that loop without going
+  // through React state (which would be stale inside event handlers).
+  const manualStopRef = useRef<boolean>(false);
+  const emptyRestartCountRef = useRef<number>(0);
+  const gotResultThisSegmentRef = useRef<boolean>(false);
 
   // Review state
   const [extracting, setExtracting] = useState(false);
@@ -211,6 +218,7 @@ export function CaptureMeetingModal({
   }
 
   function stopListening() {
+    manualStopRef.current = true;
     if (recRef.current) {
       try {
         recRef.current.stop();
@@ -271,12 +279,20 @@ export function CaptureMeetingModal({
     recRef.current = rec;
     baseRef.current = transcript;
     finalChunksRef.current = "";
-    rec.continuous = true;
+    manualStopRef.current = false;
+    emptyRestartCountRef.current = 0;
+    gotResultThisSegmentRef.current = false;
+    // iOS Safari ignores `continuous`; we emulate it via onend → start() below.
+    // Setting false matches iOS behaviour anyway and avoids confusing other
+    // engines.
+    rec.continuous = false;
     rec.interimResults = true;
     rec.lang =
       (typeof navigator !== "undefined" && navigator.language) || "en-GB";
 
     rec.onresult = (event: any) => {
+      gotResultThisSegmentRef.current = true;
+      emptyRestartCountRef.current = 0;
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const r = event.results[i];
@@ -294,15 +310,62 @@ export function CaptureMeetingModal({
       // 'aborted' fires when we (or the browser) stop the recogniser as part
       // of our own lifecycle — not a user-facing failure.
       if (code === "aborted") {
-        stopListening();
+        // Let onend decide whether to restart (keep-alive) or stop.
+        return;
+      }
+      // 'no-speech' is normal on iOS between auto-ends; treat it like an empty
+      // segment and let onend keep the session alive.
+      if (code === "no-speech") {
         return;
       }
       toast.error(describeSpeechError(code));
       stopListening();
     };
     rec.onend = () => {
-      stopTick();
-      setListening(false);
+      // If the user explicitly stopped, we're done.
+      if (manualStopRef.current) {
+        stopTick();
+        setListening(false);
+        return;
+      }
+
+      // Track tight restart loops: if we keep getting onend with no transcript
+      // in between, something's wrong (mic muted, page backgrounded, etc.) and
+      // we'd otherwise spin forever.
+      if (!gotResultThisSegmentRef.current) {
+        emptyRestartCountRef.current += 1;
+      } else {
+        emptyRestartCountRef.current = 0;
+      }
+      gotResultThisSegmentRef.current = false;
+
+      if (emptyRestartCountRef.current >= 4) {
+        manualStopRef.current = true;
+        stopTick();
+        setListening(false);
+        toast.message("Recording paused", {
+          description: "Didn't hear anything for a while — tap the mic to keep going.",
+        });
+        return;
+      }
+
+      // Keep-alive: iOS auto-ended the segment. Re-start the same recogniser
+      // so accumulated finalChunksRef survives. Small delay avoids racing the
+      // browser's internal teardown.
+      try {
+        recRef.current?.start();
+      } catch {
+        setTimeout(() => {
+          if (manualStopRef.current) return;
+          try {
+            recRef.current?.start();
+          } catch (err) {
+            console.error("[CaptureMeeting] keep-alive restart failed", err);
+            stopTick();
+            setListening(false);
+          }
+        }, 150);
+      }
     };
 
     try {
