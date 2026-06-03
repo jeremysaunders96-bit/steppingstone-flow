@@ -81,13 +81,13 @@ Deno.serve(async (req) => {
   const state = url.searchParams.get("state") ?? "";
   const errParam = url.searchParams.get("error");
 
-  // INIT mode: no code and no error => start the OAuth flow.
-  if (!code && !errParam) {
+  // INIT mode: no `code` param => start the OAuth flow, regardless of
+  // any other query params that may have leaked in.
+  if (!code) {
     const clientId = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID");
     if (!clientId) {
       return json({ ok: false, error: "oauth_not_configured" }, { status: 500 });
     }
-    const loginHint = url.searchParams.get("login_hint") || "";
     const nonce = crypto.randomUUID();
     const params = new URLSearchParams({
       client_id: clientId,
@@ -99,7 +99,6 @@ Deno.serve(async (req) => {
       include_granted_scopes: "true",
       state: nonce,
     });
-    if (loginHint) params.set("login_hint", loginHint);
     const consentUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     return new Response(null, {
       status: 302,
