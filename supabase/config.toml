@@ -9,9 +9,6 @@ verify_jwt = false
 [functions.google-oauth-callback]
 verify_jwt = false
 
-[functions.google-oauth-init]
-verify_jwt = false
-
 [functions.gmail-create-draft]
 verify_jwt = false
 
