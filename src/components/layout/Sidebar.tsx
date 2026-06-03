@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Home, Users, Linkedin, Mail, Briefcase, Calendar, AlertCircle, Mic, CheckSquare, Settings as SettingsIcon } from "lucide-react";
+import { Home, Users, Linkedin, Mail, Briefcase, Calendar, CalendarDays, AlertCircle, Mic, CheckSquare, Settings as SettingsIcon } from "lucide-react";
 import { useAttentionCount } from "@/hooks/useAttentionCount";
 import { useActiveDealsCount } from "@/hooks/useActiveDealsCount";
 import { useUnmatchedCount } from "@/hooks/useUnmatchedCount";
@@ -21,6 +21,7 @@ export function Sidebar({
     { to: "/", label: "Home", icon: Home, end: true, key: "home" as const },
     { to: "/contacts", label: "Contacts", icon: Users, end: false, key: "contacts" as const },
     { to: "/meetings", label: "Meetings", icon: Calendar, end: false, key: "meetings" as const },
+    { to: "/calendar", label: "Calendar", icon: CalendarDays, end: false, key: "calendar" as const },
     { to: "/action-items", label: "Action Items", icon: CheckSquare, end: false, key: "action-items" as const },
     { to: "/deals", label: "Deals", icon: Briefcase, end: false, key: "deals" as const },
     ...(unmatched > 0 ? [{ to: "/unmatched", label: "Unmatched", icon: AlertCircle, end: false, key: "unmatched" as const }] : []),
