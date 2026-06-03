@@ -3,30 +3,18 @@ import { ChevronLeft, ChevronRight, Loader2, MapPin, Users } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
-
-interface RangeEvent {
-  id: string;
-  account_email: string;
-  calendar_id: string;
-  calendar_summary: string;
-  calendar_color: string | null;
-  title: string;
-  start: string;
-  end: string;
-  all_day: boolean;
-  location: string | null;
-  attendees: { email: string; displayName?: string }[];
-  html_link: string | null;
-}
+import {
+  CalendarEvent,
+  CalendarMeta,
+  dedupeEvents,
+  filterByEnabledCalendars,
+  loadExcludedCalendars,
+  saveExcludedCalendars,
+  tagFor,
+} from "@/lib/calendarEvents";
+import { CalendarSelector } from "@/components/CalendarSelector";
 
 type View = "day" | "week" | "month";
-type Tag = "work" | "personal";
-
-function tagFor(accountEmail: string): Tag {
-  if (accountEmail === "willmeadon@gmail.com") return "personal";
-  if (accountEmail === "william@sstone.co.uk") return "work";
-  return accountEmail.endsWith("@sstone.co.uk") ? "work" : "personal";
-}
 
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
@@ -100,7 +88,9 @@ function navigate(view: View, anchor: Date, dir: -1 | 1): Date {
 export default function CalendarPage() {
   const [view, setView] = useState<View>("week");
   const [anchor, setAnchor] = useState<Date>(new Date());
-  const [events, setEvents] = useState<RangeEvent[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [calendars, setCalendars] = useState<CalendarMeta[]>([]);
+  const [excluded, setExcluded] = useState<Set<string>>(() => loadExcludedCalendars());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -117,9 +107,10 @@ export default function CalendarPage() {
         });
         if (cancelled) return;
         if (invokeErr) throw invokeErr;
-        const r = data as { ok: boolean; events: RangeEvent[] };
+        const r = data as { ok: boolean; events: CalendarEvent[]; calendars?: CalendarMeta[] };
         if (!r.ok) throw new Error("Calendar fetch failed");
         setEvents(r.events);
+        setCalendars(r.calendars ?? []);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -129,16 +120,26 @@ export default function CalendarPage() {
     return () => { cancelled = true; };
   }, [range.start.getTime(), range.end.getTime()]);
 
+  const visibleEvents = useMemo(
+    () => dedupeEvents(filterByEnabledCalendars(events, excluded)),
+    [events, excluded],
+  );
+
   const eventsByDay = useMemo(() => {
-    const map = new Map<string, RangeEvent[]>();
+    const map = new Map<string, CalendarEvent[]>();
     for (const day of range.days) map.set(day.toDateString(), []);
-    for (const ev of events) {
+    for (const ev of visibleEvents) {
       const d = new Date(ev.start);
       const key = startOfDay(d).toDateString();
       if (map.has(key)) map.get(key)!.push(ev);
     }
     return map;
-  }, [events, range.days]);
+  }, [visibleEvents, range.days]);
+
+  const handleExcludedChange = (next: Set<string>) => {
+    setExcluded(next);
+    saveExcludedCalendars(next);
+  };
 
   return (
     <div className="space-y-6">
@@ -148,6 +149,9 @@ export default function CalendarPage() {
           <p className="text-sm text-muted-foreground mt-1">{range.label}</p>
         </div>
         <div className="flex items-center gap-2">
+          {calendars.length > 0 && (
+            <CalendarSelector calendars={calendars} excluded={excluded} onChange={handleExcludedChange} />
+          )}
           <div className="inline-flex rounded-md border border-border overflow-hidden">
             {(["day", "week", "month"] as View[]).map((v) => (
               <button
@@ -189,7 +193,7 @@ export default function CalendarPage() {
   );
 }
 
-function DayList({ days, eventsByDay }: { days: Date[]; eventsByDay: Map<string, RangeEvent[]> }) {
+function DayList({ days, eventsByDay }: { days: Date[]; eventsByDay: Map<string, CalendarEvent[]> }) {
   const today = new Date();
   return (
     <div className="space-y-4">
@@ -221,7 +225,7 @@ function DayList({ days, eventsByDay }: { days: Date[]; eventsByDay: Map<string,
   );
 }
 
-function EventRow({ e }: { e: RangeEvent }) {
+function EventRow({ e }: { e: CalendarEvent }) {
   const tag = tagFor(e.account_email);
   return (
     <a
@@ -257,7 +261,7 @@ function EventRow({ e }: { e: RangeEvent }) {
   );
 }
 
-function MonthGrid({ days, anchor, eventsByDay }: { days: Date[]; anchor: Date; eventsByDay: Map<string, RangeEvent[]> }) {
+function MonthGrid({ days, anchor, eventsByDay }: { days: Date[]; anchor: Date; eventsByDay: Map<string, CalendarEvent[]> }) {
   const today = new Date();
   const monthIdx = anchor.getMonth();
   const dayHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
