@@ -499,9 +499,14 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
                     ))}
                   </select>
                 ) : (
-                  <div className="h-10 flex items-center text-xs text-muted-foreground italic">
-                    No Gmail account connected
-                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-10 bg-teal hover:bg-teal/90 text-white"
+                    onClick={connectGmail}
+                  >
+                    Connect Gmail
+                  </Button>
                 )}
               </div>
             </div>
