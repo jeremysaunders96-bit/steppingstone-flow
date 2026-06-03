@@ -7,7 +7,7 @@ export const GOOGLE_OAUTH_REDIRECT_URI =
   "https://depwgcghnvixbtifxtrz.supabase.co/functions/v1/google-oauth-callback";
 
 const OAUTH_INIT_URL =
-  "https://depwgcghnvixbtifxtrz.supabase.co/functions/v1/google-oauth-init";
+  "https://depwgcghnvixbtifxtrz.supabase.co/functions/v1/google-oauth-callback";
 
 export const KNOWN_ACCOUNTS: { email: string; label: string }[] = [
   { email: "william@sstone.co.uk", label: "Work (Steppingstone)" },

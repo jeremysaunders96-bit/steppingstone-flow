@@ -10,7 +10,18 @@ const REQUIRED_SCOPES = [
   "https://www.googleapis.com/auth/userinfo.email",
 ];
 
+const INIT_SCOPES = [
+  "https://www.googleapis.com/auth/gmail.compose",
+  "https://www.googleapis.com/auth/calendar",
+  "openid",
+  "email",
+  "https://www.googleapis.com/auth/userinfo.email",
+];
+
 const STATE_COOKIE_NAME = "g_oauth_state";
+const STATE_COOKIE_MAX_AGE = 600;
+const REDIRECT_URI =
+  "https://depwgcghnvixbtifxtrz.supabase.co/functions/v1/google-oauth-callback";
 
 function readCookie(header: string | null, name: string): string | null {
   if (!header) return null;
@@ -19,6 +30,17 @@ function readCookie(header: string | null, name: string): string | null {
     if (k === name) return rest.join("=");
   }
   return null;
+}
+
+function setStateCookie(value: string): string {
+  return [
+    `${STATE_COOKIE_NAME}=${value}`,
+    "Path=/functions/v1/google-oauth-callback",
+    `Max-Age=${STATE_COOKIE_MAX_AGE}`,
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax",
+  ].join("; ");
 }
 
 function clearStateCookie(): string {
@@ -58,6 +80,36 @@ Deno.serve(async (req) => {
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state") ?? "";
   const errParam = url.searchParams.get("error");
+
+  // INIT mode: no code and no error => start the OAuth flow.
+  if (!code && !errParam) {
+    const clientId = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID");
+    if (!clientId) {
+      return json({ ok: false, error: "oauth_not_configured" }, { status: 500 });
+    }
+    const loginHint = url.searchParams.get("login_hint") || "";
+    const nonce = crypto.randomUUID();
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: REDIRECT_URI,
+      response_type: "code",
+      scope: INIT_SCOPES.join(" "),
+      access_type: "offline",
+      prompt: "consent",
+      include_granted_scopes: "true",
+      state: nonce,
+    });
+    if (loginHint) params.set("login_hint", loginHint);
+    const consentUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    return new Response(null, {
+      status: 302,
+      headers: {
+        ...corsHeaders,
+        location: consentUrl,
+        "set-cookie": setStateCookie(nonce),
+      },
+    });
+  }
 
   // Verify CSRF state against the HttpOnly cookie set by google-oauth-init.
   // Done before any other work so a forged callback can't trigger side effects.
