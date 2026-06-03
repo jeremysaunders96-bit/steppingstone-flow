@@ -18,7 +18,8 @@ export const KNOWN_ACCOUNTS: { email: string; label: string }[] = [
 ];
 
 export function getClientId(): string {
-  return (import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID as string | undefined) ?? "";
+  const fromEnv = (import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID as string | undefined) ?? "";
+  return fromEnv || "233829117590-smtkmhks2bfs8dkt52l2go43099or8p8.apps.googleusercontent.com";
 }
 
 export function isConfigured(): boolean {
