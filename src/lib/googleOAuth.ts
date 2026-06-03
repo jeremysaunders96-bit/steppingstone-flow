@@ -26,9 +26,9 @@ export function isConfigured(): boolean {
 // Returns the URL that kicks off the server-side OAuth flow. Navigating the
 // top-level window here lets google-oauth-init set the state cookie on the
 // supabase.co origin before redirecting on to Google.
-export function buildConsentUrl(loginHint?: string): string {
-  const params = new URLSearchParams();
-  if (loginHint) params.set("login_hint", loginHint);
-  const qs = params.toString();
-  return qs ? `${OAUTH_INIT_URL}?${qs}` : OAUTH_INIT_URL;
+export function buildConsentUrl(_loginHint?: string): string {
+  // Must be the bare function URL — no query params. Any leftover `state`
+  // or `code` from a previous attempt would otherwise push the function
+  // down the callback path instead of init.
+  return OAUTH_INIT_URL;
 }
