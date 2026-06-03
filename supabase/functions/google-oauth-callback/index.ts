@@ -6,8 +6,6 @@ import { corsHeaders, json, serviceClient } from "../_shared/google.ts";
 
 const REQUIRED_SCOPES = [
   "https://www.googleapis.com/auth/gmail.compose",
-  "https://www.googleapis.com/auth/calendar",
-  "https://www.googleapis.com/auth/contacts.readonly",
   "https://www.googleapis.com/auth/userinfo.email",
 ];
 

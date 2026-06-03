@@ -12,6 +12,7 @@ import { type Contact, supabase } from "@/lib/supabase";
 import { generateDraft, fetchRecentInteractions, contactToBrief, saveDraftFeedback } from "@/lib/draftEmail";
 import { DraftFeedback } from "@/components/DraftFeedback";
 import { listConnectedAccounts, type GoogleAccountRow } from "@/lib/googleAccounts";
+import { buildConsentUrl, isConfigured as isOAuthConfigured } from "@/lib/googleOAuth";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -236,6 +237,7 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
       });
       recordFeedback();
     } catch (e) {
+      console.error("gmail-create-draft failed", e);
       toast({
         title: "Couldn't save draft",
         description: e instanceof Error ? e.message : String(e),
@@ -243,6 +245,24 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
       });
     } finally {
       setSending(false);
+    }
+  };
+
+  const connectGmail = () => {
+    if (!isOAuthConfigured()) {
+      toast({
+        title: "Gmail OAuth not configured",
+        description: "Set VITE_GOOGLE_OAUTH_CLIENT_ID and the matching Supabase secrets first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      // Full-page redirect — required on iPad Safari. No popup, no webview.
+      window.location.href = buildConsentUrl();
+    } catch (e) {
+      console.error("buildConsentUrl failed", e);
+      toast({ title: "Couldn't start Gmail connect", variant: "destructive" });
     }
   };
 
@@ -479,9 +499,14 @@ export function ComposeEmailModal({ open, onOpenChange, lockedContact, dictateOn
                     ))}
                   </select>
                 ) : (
-                  <div className="h-10 flex items-center text-xs text-muted-foreground italic">
-                    No Gmail account connected
-                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-10 bg-teal hover:bg-teal/90 text-white"
+                    onClick={connectGmail}
+                  >
+                    Connect Gmail
+                  </Button>
                 )}
               </div>
             </div>
