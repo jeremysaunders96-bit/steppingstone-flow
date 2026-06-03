@@ -124,10 +124,6 @@ Deno.serve(async (req) => {
     const r = finishUrl({ google_error: errParam, state });
     return r ? redirectTo(r) : json({ ok: false, error: errParam }, { status: 400 });
   }
-  if (!code) {
-    const r = finishUrl({ google_error: "missing_code", state });
-    return r ? redirectTo(r) : json({ ok: false, error: "missing_code" }, { status: 400 });
-  }
 
   const clientId = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID");
   const clientSecret = Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET");
