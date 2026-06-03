@@ -236,25 +236,34 @@ export function CaptureMeetingModal({
     }
   }
 
-  async function startListening() {
+  // iOS Safari (incl. iPad) loses the user-activation token across `await`,
+  // so awaiting getUserMedia before recognition.start() causes an immediate
+  // 'aborted'. The Web Speech API on iOS handles its own mic permission,
+  // so we skip the pre-flight there and call start() synchronously.
+  function isIOSSafari(): boolean {
+    if (typeof navigator === "undefined") return false;
+    const ua = navigator.userAgent || "";
+    const iOS = /iPad|iPhone|iPod/.test(ua) ||
+      (ua.includes("Macintosh") && typeof document !== "undefined" && "ontouchend" in document);
+    const isSafari = /^((?!chrome|crios|fxios|android).)*safari/i.test(ua);
+    return iOS && isSafari;
+  }
+
+  function startListening() {
     if (!supported) return;
+    if (listening) return; // toggleRecord handles stop separately; never stop-then-start in one gesture
 
-    // If a recogniser is already running, stop it cleanly before starting fresh.
-    if (recRef.current && listening) {
-      stopListening();
-      await new Promise((r) => setTimeout(r, 150));
-    }
+    const iosSafari = isIOSSafari();
 
-    // Pre-flight mic permission. We don't need the stream itself — just consent.
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach((t) => t.stop());
-    } catch (err) {
-      console.error("[CaptureMeeting] getUserMedia failed", err);
-      toast.error(
-        "Microphone access is blocked — enable it in your browser settings and tap record again",
-      );
-      return;
+    if (!iosSafari) {
+      // Desktop / Android: pre-flight mic permission so we can surface a clear
+      // error instead of a silent recognition failure. Fire-and-forget so we
+      // don't burn the user-activation token unnecessarily.
+      navigator.mediaDevices?.getUserMedia({ audio: true })
+        .then((stream) => stream.getTracks().forEach((t) => t.stop()))
+        .catch((err) => {
+          console.error("[CaptureMeeting] getUserMedia failed", err);
+        });
     }
 
     const rec = getRecognition();
@@ -282,6 +291,12 @@ export function CaptureMeetingModal({
     rec.onerror = (event: any) => {
       const code = event?.error || "";
       console.error("[CaptureMeeting] SpeechRecognition error", event, code);
+      // 'aborted' fires when we (or the browser) stop the recogniser as part
+      // of our own lifecycle — not a user-facing failure.
+      if (code === "aborted") {
+        stopListening();
+        return;
+      }
       toast.error(describeSpeechError(code));
       stopListening();
     };
@@ -290,30 +305,24 @@ export function CaptureMeetingModal({
       setListening(false);
     };
 
-    const tryStart = (attempt = 0) => {
-      try {
-        rec.start();
+    try {
+      rec.start();
+      setListening(true);
+      startTick();
+    } catch (err: any) {
+      console.error("[CaptureMeeting] rec.start() threw", err);
+      const msg = String(err?.message || err?.name || "");
+      const alreadyStarted =
+        err?.name === "InvalidStateError" || /already started/i.test(msg);
+      if (alreadyStarted) {
+        // Treat as already-listening rather than surfacing an error.
         setListening(true);
         startTick();
-      } catch (err: any) {
-        console.error("[CaptureMeeting] rec.start() threw", err);
-        const msg = String(err?.message || err?.name || "");
-        const alreadyStarted =
-          err?.name === "InvalidStateError" || /already started/i.test(msg);
-        if (alreadyStarted && attempt === 0) {
-          try { rec.stop(); } catch { /* noop */ }
-          setTimeout(() => tryStart(1), 200);
-          return;
-        }
-        toast.error(
-          alreadyStarted
-            ? "Voice recording is already running — please try again"
-            : `Couldn't start voice recording: ${msg || "unknown error"}`,
-        );
-        setListening(false);
+        return;
       }
-    };
-    tryStart();
+      toast.error(`Couldn't start voice recording: ${msg || "unknown error"}`);
+      setListening(false);
+    }
   }
 
   function toggleRecord() {
