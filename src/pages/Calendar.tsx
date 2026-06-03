@@ -193,7 +193,7 @@ export default function CalendarPage() {
   );
 }
 
-function DayList({ days, eventsByDay }: { days: Date[]; eventsByDay: Map<string, RangeEvent[]> }) {
+function DayList({ days, eventsByDay }: { days: Date[]; eventsByDay: Map<string, CalendarEvent[]> }) {
   const today = new Date();
   return (
     <div className="space-y-4">
@@ -225,7 +225,7 @@ function DayList({ days, eventsByDay }: { days: Date[]; eventsByDay: Map<string,
   );
 }
 
-function EventRow({ e }: { e: RangeEvent }) {
+function EventRow({ e }: { e: CalendarEvent }) {
   const tag = tagFor(e.account_email);
   return (
     <a
@@ -261,7 +261,7 @@ function EventRow({ e }: { e: RangeEvent }) {
   );
 }
 
-function MonthGrid({ days, anchor, eventsByDay }: { days: Date[]; anchor: Date; eventsByDay: Map<string, RangeEvent[]> }) {
+function MonthGrid({ days, anchor, eventsByDay }: { days: Date[]; anchor: Date; eventsByDay: Map<string, CalendarEvent[]> }) {
   const today = new Date();
   const monthIdx = anchor.getMonth();
   const dayHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
