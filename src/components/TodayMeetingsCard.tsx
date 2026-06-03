@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CalendarDays, Loader2, MapPin, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ interface TodayEvent {
   location: string | null;
   attendees: { email: string; displayName?: string }[];
   html_link: string | null;
+  ical_uid?: string | null;
 }
 
 type Tag = "work" | "personal";
@@ -26,6 +27,41 @@ function tagFor(accountEmail: string): Tag {
   if (accountEmail === "willmeadon@gmail.com") return "personal";
   if (accountEmail === "william@sstone.co.uk") return "work";
   return accountEmail.endsWith("@sstone.co.uk") ? "work" : "personal";
+}
+
+function dedupeKey(e: TodayEvent): string {
+  if (e.ical_uid) return `uid:${e.ical_uid}`;
+  return `tse:${e.title}|${e.start}|${e.end}`;
+}
+
+// Prefer the primary calendar of the account (calendar_id === account_email),
+// then work over personal, so the surfaced tag is deterministic.
+function isPrimary(e: TodayEvent): boolean {
+  return e.calendar_id?.toLowerCase() === e.account_email?.toLowerCase();
+}
+
+function dedupeEvents(events: TodayEvent[]): TodayEvent[] {
+  const groups = new Map<string, TodayEvent[]>();
+  for (const e of events) {
+    const k = dedupeKey(e);
+    const arr = groups.get(k);
+    if (arr) arr.push(e);
+    else groups.set(k, [e]);
+  }
+  const picked: TodayEvent[] = [];
+  for (const arr of groups.values()) {
+    arr.sort((a, b) => {
+      const ap = isPrimary(a) ? 0 : 1;
+      const bp = isPrimary(b) ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      const at = tagFor(a.account_email) === "work" ? 0 : 1;
+      const bt = tagFor(b.account_email) === "work" ? 0 : 1;
+      return at - bt;
+    });
+    picked.push(arr[0]);
+  }
+  picked.sort((a, b) => a.start.localeCompare(b.start));
+  return picked;
 }
 
 function formatTime(iso: string, allDay: boolean): string {
@@ -67,6 +103,8 @@ export function TodayMeetingsCard() {
     return () => { cancelled = true; };
   }, []);
 
+  const visibleEvents = useMemo(() => (events ? dedupeEvents(events) : []), [events]);
+
   if (loading) {
     return (
       <div className="card-soft py-8 px-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -91,7 +129,7 @@ export function TodayMeetingsCard() {
     );
   }
 
-  if (!events || events.length === 0) {
+  if (!events || visibleEvents.length === 0) {
     return (
       <div className="card-soft py-8 px-6 flex flex-col items-center text-center gap-2">
         <CalendarDays className="h-8 w-8 text-muted-foreground/60" strokeWidth={1.5} />
@@ -102,7 +140,7 @@ export function TodayMeetingsCard() {
 
   return (
     <div className="card-soft divide-y">
-      {events.map((e) => {
+      {visibleEvents.map((e) => {
         const tag = tagFor(e.account_email);
         return (
           <a
