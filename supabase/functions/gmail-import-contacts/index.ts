@@ -31,6 +31,16 @@ interface NewContact {
 
 type ContactInsert = NewContact & { status: "contacted" };
 
+interface ExistingContactRow {
+  id: string;
+  email: string | null;
+}
+
+interface ExistingContactMerge {
+  contact: NewContact;
+  ids: string[];
+}
+
 function toInsert(c: NewContact): ContactInsert {
   return { ...c, status: "contacted" };
 }
@@ -119,15 +129,16 @@ Deno.serve(async (req) => {
   // Pull existing emails so we can report merged vs. newly inserted.
   const { data: existing, error: existingErr } = await supabase
     .from("contacts")
-    .select("email")
+    .select("id,email")
     .not("email", "is", null);
   if (existingErr) return json({ ok: false, error: existingErr.message }, { status: 500 });
-  const existingEmails = new Set(
-    (existing ?? [])
-      .map((r) => ((r as { email: string | null }).email ?? "").trim().toLowerCase())
-      .filter(Boolean),
-  );
-  const newOnes = candidates.filter((c) => !existingEmails.has(c.email));
+  const existingByEmail = new Map<string, string[]>();
+  for (const row of (existing ?? []) as ExistingContactRow[]) {
+    const email = (row.email ?? "").trim().toLowerCase();
+    if (!email) continue;
+    existingByEmail.set(email, [...(existingByEmail.get(email) ?? []), row.id]);
+  }
+  const newOnes = candidates.filter((c) => !existingByEmail.has(c.email));
   const merged = candidates.length - newOnes.length;
 
   if (body.dry_run) {
@@ -144,20 +155,24 @@ Deno.serve(async (req) => {
   // Merge existing rows by email without touching their CRM status, and insert
   // new rows with a status that satisfies contacts_status_check.
   let mergedCount = 0;
-  const existingOnes = candidates.filter((c) => existingEmails.has(c.email));
+  const existingOnes: ExistingContactMerge[] = candidates
+    .map((contact) => ({ contact, ids: existingByEmail.get(contact.email) ?? [] }))
+    .filter((item) => item.ids.length > 0);
   for (let i = 0; i < existingOnes.length; i += 25) {
     const chunk = existingOnes.slice(i, i + 25);
-    const results = await Promise.all(chunk.map((c) =>
+    const results = await Promise.all(chunk.flatMap(({ contact, ids }) =>
+      ids.map((id) =>
       supabase
         .from("contacts")
         .update({
-          full_name: c.full_name,
-          company: c.company,
-          role: c.role,
-          source: c.source,
-          imported_at: c.imported_at,
+          full_name: contact.full_name,
+          company: contact.company,
+          role: contact.role,
+          source: contact.source,
+          imported_at: contact.imported_at,
         })
-        .eq("email", c.email)
+        .eq("id", id),
+      )
     ));
     const failed = results.find((r) => r.error);
     if (failed?.error) {
