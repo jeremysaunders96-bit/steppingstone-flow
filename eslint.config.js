@@ -21,6 +21,19 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/integrations/supabase/client",
+              message:
+                "Do not import the auto-generated Lovable Cloud client (points at the wrong Supabase project). Use '@/lib/supabase' instead.",
+            },
+          ],
+          patterns: ["**/integrations/supabase/client"],
+        },
+      ],
     },
   },
 );
