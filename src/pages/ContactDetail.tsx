@@ -49,7 +49,8 @@ export default function ContactDetail() {
   const [editRole, setEditRole] = useState("");
   const [editCompany, setEditCompany] = useState("");
   const [editFund, setEditFund] = useState("");
-  const [editBoard, setEditBoard] = useState("");
+  const [editBoards, setEditBoards] = useState<string[]>([]);
+  const [boardInput, setBoardInput] = useState("");
   const [editCustom, setEditCustom] = useState<Record<string, string>>({});
   const [savingTop, setSavingTop] = useState(false);
 
@@ -142,7 +143,10 @@ export default function ContactDetail() {
     setEditRole(c.role || "");
     setEditCompany(c.company || "");
     setEditFund(c.fund || "");
-    setEditBoard(c.board || "");
+    const initial = (c.boards && c.boards.length ? c.boards : (c.board ? [c.board] : []))
+      .map(b => (b || "").trim()).filter(Boolean);
+    setEditBoards(Array.from(new Set(initial)));
+    setBoardInput("");
     const cf = (c.custom_fields || {}) as Record<string, string>;
     const seeded: Record<string, string> = {};
     for (const ck of customKeys) seeded[ck.key] = cf[ck.key] || "";
@@ -156,7 +160,8 @@ export default function ContactDetail() {
     setEditRole("");
     setEditCompany("");
     setEditFund("");
-    setEditBoard("");
+    setEditBoards([]);
+    setBoardInput("");
     setEditCustom({});
   };
 
@@ -175,7 +180,8 @@ export default function ContactDetail() {
         role: editRole.trim() || null,
         company: editCompany.trim() || null,
         fund: editFund.trim() || null,
-        board: editBoard.trim() || null,
+        boards: editBoards.length ? editBoards : null,
+        board: editBoards[0] || null,
         custom_fields: mergedCustom,
       })
       .eq("id", id);
@@ -247,10 +253,41 @@ export default function ContactDetail() {
                     onChange={e => setEditFund(e.target.value)}
                     placeholder="Fund"
                   />
+                </div>
+                <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground">Boards</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {editBoards.map(b => (
+                      <span key={b} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-teal-light text-teal">
+                        {b}
+                        <button
+                          type="button"
+                          onClick={() => setEditBoards(prev => prev.filter(x => x !== b))}
+                          className="hover:text-destructive"
+                          aria-label={`Remove ${b}`}
+                        >×</button>
+                      </span>
+                    ))}
+                  </div>
                   <Input
-                    value={editBoard}
-                    onChange={e => setEditBoard(e.target.value)}
-                    placeholder="Board"
+                    value={boardInput}
+                    onChange={e => setBoardInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" || e.key === ",") {
+                        e.preventDefault();
+                        const v = boardInput.trim().replace(/,$/, "").trim();
+                        if (v && !editBoards.includes(v)) setEditBoards(prev => [...prev, v]);
+                        setBoardInput("");
+                      } else if (e.key === "Backspace" && boardInput === "" && editBoards.length) {
+                        setEditBoards(prev => prev.slice(0, -1));
+                      }
+                    }}
+                    onBlur={() => {
+                      const v = boardInput.trim();
+                      if (v && !editBoards.includes(v)) setEditBoards(prev => [...prev, v]);
+                      setBoardInput("");
+                    }}
+                    placeholder="Add a board and press Enter"
                   />
                 </div>
                 {customKeys.length > 0 && (
