@@ -44,10 +44,21 @@ function getCellValue(c: Contact, col: ColumnKey): string | null {
     case "company": return c.company;
     case "role": return c.role;
     case "fund": return c.fund;
-    case "board": return c.board;
+    case "board": {
+      const arr = (c.boards || []).filter(Boolean);
+      if (arr.length) return arr.join(", ");
+      return c.board;
+    }
     case "status": return c.status;
     case "last_contact_date": return c.last_contact_date;
   }
+}
+
+function getContactBoards(c: Contact): string[] {
+  const arr = (c.boards || []).filter(b => b && String(b).trim() !== "");
+  if (arr.length) return arr;
+  if (c.board && c.board.trim() !== "") return [c.board];
+  return [];
 }
 
 export default function Contacts() {
@@ -102,9 +113,13 @@ export default function Contacts() {
     const map: Record<string, string[]> = {};
     for (const col of filterableCols) {
       const set = new Set<string>();
-      for (const r of rows) {
-        const v = getCellValue(r, col);
-        if (v != null && String(v).trim() !== "") set.add(String(v));
+      if (col.key === "board") {
+        for (const r of rows) for (const b of getContactBoards(r)) set.add(b);
+      } else {
+        for (const r of rows) {
+          const v = getCellValue(r, col);
+          if (v != null && String(v).trim() !== "") set.add(String(v));
+        }
       }
       map[col.key] = Array.from(set).sort((a, b) =>
         a.localeCompare(b, undefined, { sensitivity: "base", numeric: true })
@@ -135,9 +150,14 @@ export default function Contacts() {
       for (const [key, vals] of activeFilterEntries) {
         const col = filterableCols.find(c => c.key === key);
         if (!col) continue;
-        const cellRaw = getCellValue(r, col);
-        const cell = cellRaw == null ? "" : String(cellRaw);
-        if (!vals.includes(cell)) return false;
+        if (key === "board") {
+          const bs = getContactBoards(r);
+          if (!vals.some(v => bs.includes(v))) return false;
+        } else {
+          const cellRaw = getCellValue(r, col);
+          const cell = cellRaw == null ? "" : String(cellRaw);
+          if (!vals.includes(cell)) return false;
+        }
       }
       return true;
     });
@@ -412,6 +432,22 @@ export default function Contacts() {
                   }
                   if (col.key === "last_contact_date") {
                     return <td key={col.key} className="px-5 py-3 text-ink/70">{formatShortDate(c.last_contact_date)}</td>;
+                  }
+                  if (col.key === "board") {
+                    const bs = getContactBoards(c);
+                    return (
+                      <td key={col.key} className="px-5 py-3">
+                        {bs.length === 0 ? <span className="text-ink/80">—</span> : (
+                          <div className="flex flex-wrap gap-1">
+                            {bs.map(b => (
+                              <span key={b} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-teal-light text-teal">
+                                {b}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                    );
                   }
                   return <td key={col.key} className="px-5 py-3 text-ink/80">{v || "—"}</td>;
                 })}
