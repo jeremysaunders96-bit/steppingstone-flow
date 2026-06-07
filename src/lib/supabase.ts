@@ -31,6 +31,7 @@ export interface Contact {
   created_at: string;
   fund: string | null;
   board: string | null;
+  boards: string[] | null;
   custom_fields: Record<string, string> | null;
 }
 
