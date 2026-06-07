@@ -49,7 +49,8 @@ export default function ContactDetail() {
   const [editRole, setEditRole] = useState("");
   const [editCompany, setEditCompany] = useState("");
   const [editFund, setEditFund] = useState("");
-  const [editBoard, setEditBoard] = useState("");
+  const [editBoards, setEditBoards] = useState<string[]>([]);
+  const [boardInput, setBoardInput] = useState("");
   const [editCustom, setEditCustom] = useState<Record<string, string>>({});
   const [savingTop, setSavingTop] = useState(false);
 
@@ -142,7 +143,10 @@ export default function ContactDetail() {
     setEditRole(c.role || "");
     setEditCompany(c.company || "");
     setEditFund(c.fund || "");
-    setEditBoard(c.board || "");
+    const initial = (c.boards && c.boards.length ? c.boards : (c.board ? [c.board] : []))
+      .map(b => (b || "").trim()).filter(Boolean);
+    setEditBoards(Array.from(new Set(initial)));
+    setBoardInput("");
     const cf = (c.custom_fields || {}) as Record<string, string>;
     const seeded: Record<string, string> = {};
     for (const ck of customKeys) seeded[ck.key] = cf[ck.key] || "";
@@ -156,7 +160,8 @@ export default function ContactDetail() {
     setEditRole("");
     setEditCompany("");
     setEditFund("");
-    setEditBoard("");
+    setEditBoards([]);
+    setBoardInput("");
     setEditCustom({});
   };
 
@@ -175,7 +180,8 @@ export default function ContactDetail() {
         role: editRole.trim() || null,
         company: editCompany.trim() || null,
         fund: editFund.trim() || null,
-        board: editBoard.trim() || null,
+        boards: editBoards.length ? editBoards : null,
+        board: editBoards[0] || null,
         custom_fields: mergedCustom,
       })
       .eq("id", id);
