@@ -29,6 +29,12 @@ interface NewContact {
   imported_at: string;
 }
 
+type ContactInsert = NewContact & { status: "contacted" };
+
+function toInsert(c: NewContact): ContactInsert {
+  return { ...c, status: "contacted" };
+}
+
 function personToContact(p: Person): NewContact | null {
   const email = pickPrimary(p.emailAddresses)?.value?.trim().toLowerCase();
   if (!email) return null;
@@ -135,24 +141,53 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Upsert by email so existing rows merge (company/role/full_name refreshed)
-  // and new rows are inserted. Chunk to keep payloads reasonable.
-  let upserted = 0;
-  for (let i = 0; i < candidates.length; i += 500) {
-    const chunk = candidates.slice(i, i + 500);
-    const { error: upErr } = await supabase
-      .from("contacts")
-      .upsert(chunk, { onConflict: "email" });
-    if (upErr) {
+  // Merge existing rows by email without touching their CRM status, and insert
+  // new rows with a status that satisfies contacts_status_check.
+  let mergedCount = 0;
+  const existingOnes = candidates.filter((c) => existingEmails.has(c.email));
+  for (let i = 0; i < existingOnes.length; i += 25) {
+    const chunk = existingOnes.slice(i, i + 25);
+    const results = await Promise.all(chunk.map((c) =>
+      supabase
+        .from("contacts")
+        .update({
+          full_name: c.full_name,
+          company: c.company,
+          role: c.role,
+          source: c.source,
+          imported_at: c.imported_at,
+        })
+        .eq("email", c.email)
+    ));
+    const failed = results.find((r) => r.error);
+    if (failed?.error) {
       return json({
         ok: false,
-        error: "upsert_failed",
-        detail: upErr.message,
-        processed: upserted,
-        remaining: candidates.length - upserted,
+        error: "merge_failed",
+        detail: failed.error.message,
+        processed: mergedCount,
+        remaining: candidates.length - mergedCount,
       }, { status: 500 });
     }
-    upserted += chunk.length;
+    mergedCount += chunk.length;
+  }
+
+  let inserted = 0;
+  for (let i = 0; i < newOnes.length; i += 500) {
+    const chunk = newOnes.slice(i, i + 500).map(toInsert);
+    const { error: insertErr } = await supabase
+      .from("contacts")
+      .insert(chunk);
+    if (insertErr) {
+      return json({
+        ok: false,
+        error: "insert_failed",
+        detail: insertErr.message,
+        processed: mergedCount + inserted,
+        remaining: candidates.length - mergedCount - inserted,
+      }, { status: 500 });
+    }
+    inserted += chunk.length;
   }
 
   return json({
@@ -161,6 +196,6 @@ Deno.serve(async (req) => {
     candidates: candidates.length,
     imported: newOnes.length,
     merged,
-    upserted,
+    upserted: mergedCount + inserted,
   });
 });
