@@ -1,6 +1,6 @@
 // Import of Google contacts into the contacts table. Pulls from People API
-// people.connections.list (the user's saved contacts) and upserts by email so
-// existing rows are merged rather than duplicated.
+// people.connections.list (the user's saved contacts), merges existing rows by
+// email, and inserts new contacts with a valid CRM status.
 
 import { corsHeaders, json, serviceClient, googleFetch } from "../_shared/google.ts";
 
@@ -162,16 +162,16 @@ Deno.serve(async (req) => {
     const chunk = existingOnes.slice(i, i + 25);
     const results = await Promise.all(chunk.flatMap(({ contact, ids }) =>
       ids.map((id) =>
-      supabase
-        .from("contacts")
-        .update({
-          full_name: contact.full_name,
-          company: contact.company,
-          role: contact.role,
-          source: contact.source,
-          imported_at: contact.imported_at,
-        })
-        .eq("id", id),
+        supabase
+          .from("contacts")
+          .update({
+            full_name: contact.full_name,
+            company: contact.company,
+            role: contact.role,
+            source: contact.source,
+            imported_at: contact.imported_at,
+          })
+          .eq("id", id),
       )
     ));
     const failed = results.find((r) => r.error);
